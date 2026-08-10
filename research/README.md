@@ -10,6 +10,7 @@ each claim rather than taking the summary on faith.
 | [`02-ota-path.md`](02-ota-path.md) | Is there a no-solder path? | **Yes, and it's better than flashing.** SengledTools provisions locally; `sengled_udp` drives the bulb from HA over UDP 9080. Also documents the `--force-flash` brick hazard. |
 | [`03-uart-flash.md`](03-uart-flash.md) | Serial flashing procedures | Full mains-safety treatment. The driver is a **non-isolated SMPS**, so board "ground" can sit at line potential. Adapter ON ⇒ mains OFF, always. |
 | [`05-ha-features.md`](05-ha-features.md) | Feature → HA entity matrix | The full UDP capability surface, what's MQTT-only, the protocol caveats that shape the design, and a smoke-test plan. |
+| [`06-our-ha-app.md`](06-our-ha-app.md) | The replacement-cloud add-on | **The bulb persists absolute URLs baked in at pairing time** — pair from the wrong subnet and only re-pairing fixes it. Also: effects/gradient/groups are reachable over MQTT, so they were missing from the *pipe*, not the bulb. |
 
 ## Where the notes and the writeup diverge
 
@@ -24,6 +25,23 @@ they contradict each other, the main README states the resolution:
 | `01` rated the WF863/WF864 split near 50/50 | Closed by physical evidence: `2AGN8-WF864`. |
 | `01`/`02` carry an unsourced claim about the vendor's finances, and a flat "zero prior art" | **Both narrowed.** The financial claim is unverified and is deliberately **not** published — only the documented outages are. And prior art is zero for *WF864 specifically*; the same silicon has strong precedent (Solis S3 / EMW3080-E). |
 | `03` documents ESP8285 and Beken procedures | Neither matches the hardware. The applicable route is RTL8710BN + `ltchiptool` + `realtek-ambz`. |
+
+## Field-test reality check
+
+`06` was written before the add-on met a bulb, and its §5 ranked *"whether the W12-N15 / RTL8710BN
+bulb works with SengledTools at all"* as **risk #1**. That risk materialised: provisioning does not
+complete on our hardware. See
+[the open issue](../README.md#-open-issue-provisioning-does-not-complete-on-w12-n15).
+
+Two things worth noting about how that played out:
+
+- **The prediction was right but the stated reason wasn't.** `06` pinned the risk on upstream's
+  `SUPPORTED_TYPECODES` / `COMPATIBLE_IDENTIFY_MARKERS` constants. Reading the code, those only
+  categorise *flashing* support for a later prompt — they don't gate `--setup-wifi`, and there's no
+  early abort before credentials are sent. So the risk was real, the mechanism named for it was not.
+- **`06`'s §5.6 predicted the add-on plumbing (apk package names, `bashio` option rendering) would
+  "fail loudly at build/start, not subtly."** Both did exactly that — see the build notes in the
+  main writeup.
 
 ## Reading these
 

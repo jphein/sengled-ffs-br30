@@ -456,6 +456,53 @@ footer .fin{
   background:var(--bg-sunken);
 }
 .na .co-hd{color:var(--ink-faint)}
+.answer.warnbox{background:var(--accent-wash);border-color:var(--rule);border-left-color:var(--accent)}
+.answer.warnbox .co-hd{color:var(--accent-ink)}
+.answer.warnbox p:first-of-type{color:var(--ink)}
+.statusgrid{
+  margin-top:1.5em;max-width:74ch;
+  border:1px solid var(--rule);border-radius:12px;background:var(--bg-raised);
+  overflow:hidden;box-shadow:var(--shadow);
+}
+.sg-hd{
+  padding:11px 16px;background:var(--bg-sunken);border-bottom:1px solid var(--rule);
+  font:700 11px/1 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);
+}
+.statusgrid dl{margin:0}
+.sg-row{
+  display:grid;grid-template-columns:1fr;gap:2px;
+  padding:10px 16px;border-bottom:1px solid var(--rule-soft);
+  border-left:3px solid transparent;
+}
+@media (min-width:600px){.sg-row{grid-template-columns:230px 1fr;gap:14px;align-items:baseline}}
+.sg-row:last-of-type{border-bottom:0}
+.sg-row.ok{border-left-color:var(--good)}
+.sg-row.bad{border-left-color:var(--danger);background:var(--danger-wash)}
+.sg-row.wip{border-left-color:var(--accent)}
+.sg-row dt{font:600 14px/1.4 var(--sans);color:var(--ink)}
+.sg-row dd{margin:0;font-size:14px;color:var(--ink-soft)}
+.sg-row dd b{color:var(--ink)}
+.sg-foot{
+  margin:0;padding:13px 16px;border-top:1px solid var(--rule);
+  background:var(--bg-sunken);font-size:13.8px;color:var(--ink-soft);
+}
+.symptom{width:100%}
+.symptom td:first-child{white-space:normal}
+.hyp{
+  margin:1.4em 0;padding:0;border:1px solid var(--rule);border-radius:12px;
+  background:var(--bg-raised);overflow:hidden;
+}
+.hyp-hd{
+  padding:13px 17px;background:var(--bg-sunken);border-bottom:1px solid var(--rule);
+  font:600 15px/1.35 var(--sans);
+}
+.hyp-hd .verdict{
+  display:inline-block;margin-left:.6em;padding:4px 8px;border-radius:5px;
+  font:700 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;vertical-align:middle;
+}
+.hyp-hd .verdict.no{background:var(--danger-wash);color:var(--danger)}
+.hyp-hd .verdict.maybe{background:var(--accent-wash);color:var(--accent-ink)}
+.hyp-body{padding:4px 17px 15px}
 </style>
 </head>
 <body>
@@ -486,29 +533,57 @@ footer .fin{
       <span class="chip">✅ <b>WF864</b> &middot; MX1290 = RTL8710BN</span>
     </div>
 
-    <div class="answer">
+    <div class="answer warnbox">
       <div class="co-hd">⚡ The short version</div>
-      <p>You do not need to flash anything. You do not need to solder anything.</p>
+      <p>The no-flash path is the right thing to try first &mdash; and on our own W12-N15 it did not
+        complete.</p>
       <p>
-        Sengled&rsquo;s protocol has been reverse-engineered. You provision the bulb from a laptop
-        over the bulb&rsquo;s own WiFi AP, then drive it from Home Assistant over plain
-        <strong>UDP on port 9080</strong>. No cloud, no MQTT broker, no flashing, no teardown,
-        ~5&nbsp;minutes per bulb.
+        Sengled&rsquo;s protocol has been reverse-engineered, so in principle you provision the bulb
+        from a laptop over its own WiFi AP and then drive it from Home Assistant over plain
+        <strong>UDP port 9080</strong> &mdash; no cloud, no broker, no flashing, no teardown.
+        That&rsquo;s <a href="#path1">Path&nbsp;1</a>, and it is <strong>confirmed working on the
+        ESP8266 Sengled models</strong> (<code>W31-N11</code>, <code>W31-N15</code>).
       </p>
       <p>
-        That&rsquo;s <a href="#path1">Path&nbsp;1</a>, and a working Home Assistant integration
-        <strong>already exists</strong>. It&rsquo;s the recommended path for <em>every</em> Sengled
-        WiFi bulb &mdash; including the ones that cannot be flashed at all, which as it turns out
-        <strong><a href="#hardware">includes this one</a></strong>.
+        <strong>On our RTL8710BN hardware, provisioning stalls:</strong> the bulb accepts the WiFi
+        credentials, never joins the network, takes no DHCP lease, and reverts to its own SoftAP.
+        <a href="#openissue">That open issue is documented in full</a>, including what we ruled out.
+      </p>
+      <p>
+        The <a href="#addon">local replacement-cloud add-on</a> <em>does</em> work structurally, and
+        it&rsquo;s the correct architecture on a segmented network. So this page is currently
+        <strong>a working server, a confirmed chip ID, and one unresolved provisioning
+        failure</strong> &mdash; documented honestly, because a guide that claims a success it
+        didn&rsquo;t get is worse than no guide.
+      </p>
+    </div>
+
+    <div class="statusgrid">
+      <div class="sg-hd">Honest status</div>
+      <dl>
+        <div class="sg-row ok"><dt>Hardware identification</dt><dd>✅ <b>Confirmed</b> — <code>WF864SM-M6</code> / MX1290 / RTL8710BN, three independent ways</dd></div>
+        <div class="sg-row ok"><dt>Not a Tuya device</dt><dd>✅ <b>Confirmed</b> — Tuya exploits ruled out</dd></div>
+        <div class="sg-row ok"><dt>Path 1 on ESP8266 models</dt><dd>✅ Works — upstream-supported (<code>W31-*</code>)</dd></div>
+        <div class="sg-row bad"><dt>Path 1 on W12-N15 <small>(this bulb)</small></dt><dd>❌ <b>Provisioning does not complete.</b> <a href="#openissue">Under investigation</a></dd></div>
+        <div class="sg-row ok"><dt>Replacement-cloud add-on</dt><dd>✅ <b>Builds and runs on HA</b>, serves both endpoints + MQTT broker</dd></div>
+        <div class="sg-row wip"><dt>Add-on ↔ bulb session</dt><dd>🚧 Untested — blocked on provisioning</dd></div>
+        <div class="sg-row wip"><dt>Extended HA entity set</dt><dd>🚧 Written (22/bulb), not smoke-tested on hardware</dd></div>
+        <div class="sg-row wip"><dt>Wired UART flashing</dt><dd>🚧 Toolchain confirmed, zero prior art on this module</dd></div>
+      </dl>
+      <p class="sg-foot">
+        <b>If you have a <code>W31-N11</code> or <code>W31-N15</code></b>, this should work end to
+        end. <b>If you have a <code>W12-N15</code> like ours</b>, expect to hit the open issue —
+        and please tell us if you get past it.
       </p>
     </div>
 
     <div class="cta">
-      <a class="btn primary" href="#path1">Start with Path 1
+      <a class="btn primary" href="#openissue">Read the open issue
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
       </a>
+      <a class="btn" href="#path1">Path 1 — try first</a>
       <a class="btn" href="#id">Identify your module</a>
-      <a class="btn" href="#ha">What you get in HA</a>
+      <a class="btn" href="#addon">The add-on</a>
       <a class="btn" href="https://github.com/jphein/sengled-ffs-br30">Source on GitHub</a>
     </div>
   </div>
@@ -516,10 +591,10 @@ footer .fin{
 
 <div class="status">
   <div class="wrap">
-    <span aria-hidden="true">✅</span>
-    <span><b>Hardware identification is complete and confirmed.</b> The Path&nbsp;1 software exists
-    and is in use upstream. The extended Home&nbsp;Assistant feature set in
-    <a href="#ha">§04</a> is written but 🚧 <b>not yet smoke-tested on hardware</b>.</span>
+    <span aria-hidden="true">⚠️</span>
+    <span><b>Field-tested, and partly unsuccessful.</b> Hardware ID is confirmed and the
+    replacement-cloud add-on runs — but <b>provisioning did not complete on our W12-N15</b>.
+    <a href="#openissue">The open issue is documented in full</a> rather than papered over.</span>
   </div>
 </div>
 
@@ -534,8 +609,10 @@ footer .fin{
     </ol>
     <div class="grp">The paths</div>
     <ol>
-      <li><a href="#path1" class="hi"><span class="num">1</span>Solderless local control</a></li>
-      <li><a href="#ha" class="hi"><span class="num">4</span>What you get in HA</a></li>
+      <li><a href="#path1"><span class="num">1</span>Solderless local control</a></li>
+      <li><a href="#openissue" class="hi"><span class="num">⚠</span>Open issue: W12-N15</a></li>
+      <li><a href="#ha"><span class="num">04</span>What you get in HA</a></li>
+      <li><a href="#addon" class="hi"><span class="num">05</span>Replacement-cloud add-on</a></li>
       <li><a href="#path2"><span class="num">2</span>Local MQTT emulation</a></li>
       <li><a href="#path3" class="dim"><span class="num">3</span>Solderless OTA flash</a></li>
       <li><a href="#path4" class="dim"><span class="num">4</span>UART flash ⚠</a></li>
@@ -859,16 +936,24 @@ footer .fin{
 
     <!-- ══════════ PATH 1 ══════════ -->
     <section id="path1">
-      <h2><span class="sec-num">1</span>Solderless local control<span class="pill rec">Recommended</span></h2>
+      <h2><span class="sec-num">1</span>Solderless local control<span class="pill adv">Try first · see open issue</span></h2>
       <p>
         <strong>No flashing. No soldering. No teardown. No Sengled account. No app. No MQTT
         broker.</strong>
       </p>
-      <p>
-        Works on <em>most, if not all</em> Sengled WiFi bulbs &mdash; explicitly
-        <strong>including modules that cannot be flashed</strong>, which is why it&rsquo;s the answer
-        for this bulb rather than a consolation prize.
-      </p>
+      <div class="warn">
+        <div class="co-hd">⚠ Status: works on ESP8266 models, stalls on ours</div>
+        <p>
+          Confirmed working on the ESP8266 Sengled models (<code>W31-N11</code>,
+          <code>W31-N15</code>). <strong>On our W12-N15 / RTL8710BN, provisioning does not
+          complete</strong> — the bulb accepts credentials and never joins.
+          <a href="#openissue">Read the open issue →</a>
+        </p>
+        <p>
+          It&rsquo;s still the right thing to try first: nothing here can damage the bulb, and if it
+          works you&rsquo;re done in five minutes.
+        </p>
+      </div>
 
       <h3>What you need</h3>
       <div class="req">
@@ -953,14 +1038,20 @@ python sengled_tool.py --setup-wifi        <span class="cmt"># interactive; repe
         </p>
       </div>
 
-      <div class="ok">
-        <div class="co-hd">Why this is trustworthy for <em>this</em> model</div>
+      <div class="fix">
+        <div class="co-hd">📝 This used to claim the path was proven on this model</div>
         <p>
-          <code>SengledTools</code> <strong>PR #63</strong> was tested on <em>&ldquo;W12-N15 bulbs on
-          stock firmware&rdquo;</em> and fixed exactly the out-of-box-activation /
-          credentials-don&rsquo;t-persist failure. <strong>W12-N15 is this bulb.</strong> The
-          recommended path isn&rsquo;t theoretical here — it&rsquo;s the path someone already
-          debugged on this hardware.
+          An earlier revision cited <code>SengledTools</code> <strong>PR #63</strong> — tested on
+          <em>&ldquo;W12-N15 bulbs on stock firmware&rdquo;</em> — and concluded <em>&ldquo;W12-N15 is
+          this bulb, so the recommended path isn&rsquo;t theoretical here.&rdquo;</em> That was
+          <strong>my single strongest confidence claim, and field testing contradicted it.</strong>
+        </p>
+        <p>
+          Our W12-N15 does not complete provisioning. The upstream PR text stands on its own; what
+          was wrong was my inference that a matching model string guaranteed our unit would work.
+          Model numbers get reused across hardware revisions, and <em>ours</em> is an RTL8710BN.
+          <strong>&ldquo;Someone reported success on a device with the same model string&rdquo; is
+          weaker evidence than it reads as.</strong>
         </p>
       </div>
 
@@ -973,6 +1064,151 @@ python sengled_tool.py --setup-wifi        <span class="cmt"># interactive; repe
           only they assume the cloud is unavailable.
         </p>
       </div>
+    </section>
+
+    <!-- ══════════ OPEN ISSUE ══════════ -->
+    <section id="openissue">
+      <h2><span class="sec-num">⚠</span>Open issue: provisioning does not complete on W12-N15<span class="pill exp">Unresolved</span></h2>
+      <p>
+        <strong>This is the current blocker, and it is unresolved.</strong> Documented in detail
+        because the symptom is specific enough to be recognisable, and because a guide that hides its
+        failures wastes your evening instead of ours.
+      </p>
+
+      <h3>What happens</h3>
+      <div class="tscroll">
+        <table class="symptom">
+          <thead><tr><th>Step</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>Factory reset (flick power 5+ times)</td><td class="yes">✅ Bulb raises its SoftAP <code>Sengled_Wi-Fi Bulb_XXXX</code></td></tr>
+            <tr><td>Laptop joins the SoftAP</td><td class="yes">✅ Reachable at <code>192.168.8.1</code>, UDP 9080 answers</td></tr>
+            <tr><td><code>--setup-wifi</code> sends credentials</td><td class="yes">✅ Bulb <strong>accepts</strong> the <code>setParamsRequest</code></td></tr>
+            <tr class="hl"><td>Bulb joins the target network</td><td class="no">❌ <strong>Never happens</strong></td></tr>
+            <tr class="hl"><td>DHCP lease on the target network</td><td class="no">❌ <strong>No lease ever appears</strong></td></tr>
+            <tr><td>Bulb state afterwards</td><td class="wip">↩️ <strong>Reverts to its own SoftAP</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        So the credential handoff is accepted and then nothing downstream of it occurs. The bulb
+        behaves as though the association attempt failed and it fell back.
+      </p>
+
+      <div class="warn">
+        <div class="co-hd">⚠ Don&rsquo;t be fooled by the wizard&rsquo;s verdict — in either direction</div>
+        <p>
+          <code>--setup-wifi</code> polls <strong>its own local</strong> <code>/status</code> endpoint
+          to decide success, and refuses to count loopback hits. If you pointed
+          <code>--http-server-ip</code> at Home Assistant (as you should &mdash; see
+          <a href="#addon">§05</a>), the bulb&rsquo;s callbacks land <em>there</em>, the local
+          <code>/status</code> never flips, and <strong>the wizard times out after ~180 s even when
+          pairing worked.</strong>
+        </p>
+        <p>
+          A wizard timeout therefore proves nothing on its own. <strong>Judge by these two things
+          instead:</strong> a DHCP lease appearing for the bulb, and the add-on log showing both
+          endpoints being served. In our case <em>neither</em> happened — which is why this is a real
+          failure and not the known false negative.
+        </p>
+      </div>
+
+      <div class="hyp">
+        <div class="hyp-hd">
+          Hypothesis 1 — SengledTools provisioning is ESP8266-only
+          <span class="verdict no">Doesn&rsquo;t hold up</span>
+        </div>
+        <div class="hyp-body">
+          <p>Plausible on its face: upstream&rsquo;s <code>sengled/constants.py</code> declares</p>
+          <pre><code>SUPPORTED_TYPECODES = {"W31-N11", "W31-N15"}
+COMPATIBLE_IDENTIFY_MARKERS = ("ESP8266",)</code></pre>
+          <p>and our bulb is neither — it&rsquo;s <code>W12-N15</code> on a Realtek RTL8710BN.</p>
+          <p>
+            <strong>But reading the code, this does not work as an explanation.</strong> Those two
+            constants are referenced in exactly one place
+            (<code>wifi_setup.py:514-519</code>), where they only sort the bulb into
+            <code>supported</code> / <code>untested</code> / <code>not_supported</code> and stash it
+            as <code>support_info</code> <strong>for a later flashing prompt</strong>. There is:
+          </p>
+          <ul>
+            <li><strong>no model gate before the credentials are sent</strong>
+              (<code>setParamsRequest</code>, <code>wifi_setup.py:408</code>), and</li>
+            <li><strong>no early abort</strong> on <code>not_supported</code>.</li>
+          </ul>
+          <p>
+            The classification block also runs <em>after</em> MQTT attributes are read — i.e. after
+            the bulb is already talking. <strong>So the provisioning path is chip-agnostic as
+            written, and this hypothesis does not explain our symptom.</strong> It would explain a
+            <em>refusal</em>; we get an acceptance followed by silence.
+          </p>
+          <p>
+            <small>This narrowing came from reading upstream source, not from testing — if you have a
+            W31 bulb and a W12 bulb side by side, that comparison would settle it properly.</small>
+          </p>
+        </div>
+      </div>
+
+      <div class="hyp">
+        <div class="hyp-hd">
+          Hypothesis 2 — the radio can&rsquo;t associate with the target SSID
+          <span class="verdict maybe">Current best guess</span>
+        </div>
+        <div class="hyp-body">
+          <p>
+            This fits the symptom shape much better: credentials accepted, association fails, fall
+            back to SoftAP. Candidate causes — all things a modern AP does by default, and a 2020-era
+            Realtek part may not tolerate:
+          </p>
+          <div class="tscroll">
+            <table>
+              <thead><tr><th>Suspect</th><th>Why it&rsquo;s plausible</th></tr></thead>
+              <tbody>
+                <tr><td><strong>PMF (802.11w) required</strong></td><td>A client that can&rsquo;t do management-frame protection is refused outright at association. Very common default on WPA2/WPA3-transition SSIDs.</td></tr>
+                <tr><td><strong>Fast roaming (802.11r/k/v)</strong></td><td>Older clients sometimes fail association on FT-enabled SSIDs rather than degrading gracefully.</td></tr>
+                <tr><td><strong>WPA3 / mixed-mode SAE</strong></td><td>A WPA2-only client may fail on a transition-mode SSID.</td></tr>
+                <tr><td><strong>Band steering / shared 2.4+5 GHz SSID</strong></td><td>The bulb is 2.4 GHz-only and may be steered at a band it cannot see.</td></tr>
+                <tr><td><strong>Hidden SSID / exotic PSK characters</strong></td><td>Classic provisioning-path breakage.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <h3>If you hit this, try this</h3>
+      <p>The cheapest decisive test is to <strong>remove the network from the equation
+        entirely</strong>:</p>
+      <ol class="steps">
+        <li>Stand up a <strong>throwaway 2.4 GHz-only SSID</strong>: WPA2-PSK, <strong>PMF
+          disabled</strong>, <strong>no 802.11r/k/v</strong>, not hidden, plain-ASCII password, no
+          band steering. A phone hotspot works.</li>
+        <li>Provision the bulb onto <em>that</em>.</li>
+        <li><strong>If it joins:</strong> the bulb and the tool are fine, and your production
+          SSID&rsquo;s security features are the cause. Narrow down by re-enabling one at a time.</li>
+        <li><strong>If it still doesn&rsquo;t join:</strong> the problem is the bulb/tool combination
+          on RTL8710BN hardware, and Hypothesis 1 deserves another look despite the code reading
+          above.</li>
+      </ol>
+      <div class="ok">
+        <p>
+          Either outcome is genuinely useful — it splits the two hypotheses cleanly.
+          <strong>If you run this test, on either result, please open an issue.</strong> Right now
+          this repo has one data point.
+        </p>
+      </div>
+
+      <h3>What this means for your options</h3>
+      <ul>
+        <li><strong>The bulb is not bricked and nothing is lost.</strong> It still raises its SoftAP,
+          still answers UDP 9080, and <code>probe_bulb.py</code> still talks to it. You can retry
+          indefinitely.</li>
+        <li><strong><a href="#path2">Path 2</a></strong> (<code>ha-sengled-local</code>) is worth
+          trying — an independent implementation of the same idea, so it may not share whatever this
+          bug is.</li>
+        <li><strong><a href="#path4">Path 4</a></strong> (wired UART) becomes relatively more
+          attractive than it looked when Path 1 seemed certain. It bypasses Sengled&rsquo;s
+          provisioning entirely — with ESPHome on the bulb you configure WiFi yourself and none of
+          this applies. Still a mains-voltage teardown with no prior art on this module, so not a
+          casual next step, but no longer clearly the worse trade.</li>
+      </ul>
     </section>
 
     <!-- ══════════ 04 HA FEATURES ══════════ -->
@@ -1045,11 +1281,18 @@ python sengled_tool.py --setup-wifi        <span class="cmt"># interactive; repe
 
       <h3>What you do <em>not</em> get over UDP — and why</h3>
       <dl class="gap">
-        <div class="gap-row"><dt>Effects</dt><dd>MQTT-only. Absent from the UDP command surface entirely.</dd></div>
-        <div class="gap-row"><dt>Transitions / gradient</dt><dd>MQTT-only. Use HA-side transitions instead.</dd></div>
+        <div class="gap-row"><dt>Effects</dt><dd>Absent from the UDP surface — but <strong>documented on MQTT</strong>. ✅ Recoverable via the <a href="#mqttunlock">replacement-cloud broker</a>.</dd></div>
+        <div class="gap-row"><dt>Transitions / gradient</dt><dd>UDP has no gradient command; MQTT has a Gradient/Transition section. ✅ Recoverable the same way.</dd></div>
         <div class="gap-row"><dt>Multi-bulb group commands</dt><dd>MQTT-only — but unnecessary: use a native <strong>HA light group</strong>, which scenes and voice assistants already understand.</dd></div>
-        <div class="gap-row"><dt>RSSI</dt><dd>Not in the protocol. <code>search_devices</code> returns no signal field. Connectivity is represented by entity availability plus a <em>Last seen</em> timestamp.</dd></div>
+        <div class="gap-row"><dt>RSSI</dt><dd>❌ <strong>Not in the protocol at all.</strong> <code>search_devices</code> returns no signal field. Connectivity is entity availability plus a <em>Last seen</em> timestamp.</dd></div>
       </dl>
+      <div class="ok">
+        <p>
+          <strong>Three of those four are a limitation of the <em>transport</em>, not the bulb.</strong>
+          Standing up the <a href="#addon">local MQTT broker</a> is what makes them reachable. Only
+          RSSI is genuinely absent from the firmware.
+        </p>
+      </div>
 
       <h3>Protocol caveats worth knowing before you build automations</h3>
 
@@ -1119,9 +1362,219 @@ light:
       </p>
     </section>
 
+    <!-- ══════════ 05 ADD-ON ══════════ -->
+    <section id="addon">
+      <h2><span class="sec-num">05</span>The local replacement-cloud add-on<span class="pill rec">✅ Works</span></h2>
+      <p>
+        <strong>Builds and runs on Home Assistant</strong>, serving both provisioning endpoints and an
+        MQTT broker on the bulb-facing network. This is the part of the stack that <em>does</em> work,
+        and on a segmented network it is not optional polish &mdash; it is <strong>load-bearing for
+        pairing</strong>.
+      </p>
+
+      <h3>Why the server must live on Home Assistant</h3>
+      <div class="danger">
+        <div class="co-hd">🔒 The bulb permanently remembers where it was told to call</div>
+        <p>During provisioning the tool writes <strong>absolute URLs</strong> into the bulb:</p>
+        <pre><code>"appServerDomain": f"http://{http_host}:{http_port}/life2/device/accessCloud.json",
+"jbalancerDomain": f"http://{http_host}:{http_port}/jbalancer/new/bimqtt",</code></pre>
+        <p>
+          <strong>The bulb persists these and calls them for the rest of its life.</strong> And by
+          default <code>http_host</code> is <em>the pairing machine&rsquo;s own LAN IP</em>.
+        </p>
+        <p>
+          So if you pair from a laptop on your admin network, you permanently bake in an address your
+          IoT VLAN&rsquo;s firewall policy can never reach. The bulb will call it forever and never
+          get an answer. <strong>The only fix is re-pairing.</strong> That constraint is what forces
+          the server onto Home Assistant — the one host reliably on the bulbs&rsquo; network.
+        </p>
+      </div>
+
+      <h3>Architecture</h3>
+      <pre><code>   ┌──────────── IoT VLAN (bulbs) ─────────────┐
+   │  bulb ──1── HTTP  (accessCloud + bimqtt) ─┐│
+   │   └───2──── MQTT/TLS  wifielement/#  ───┐ ││
+   └─────────────────────────────────────────┼─┼┘
+                                             │ │
+                  ┌──────────────────────────▼─▼──┐
+                  │ Home Assistant (bulb-facing)  │
+                  │  ┌─────────────────────────┐  │
+                  │  │ ADD-ON                  │  │
+                  │  │  SetupHTTPServer   ←────┼──┼─ upstream code
+                  │  │  EmbeddedBroker    ←────┼──┼─ upstream code
+                  │  │  MqttBridge             │  │
+                  │  └───────────┬─────────────┘  │
+                  │        3     ▼                │
+                  │          Mosquitto → HA core  │
+                  │                        ▲      │
+                  │        4  sengled_udp ─┘      │──── UDP :9080 ──&gt; bulbs
+                  └───────────────────────────────┘</code></pre>
+      <ol class="seq">
+        <li>Bulb calls its persisted URLs; the <code>bimqtt</code> reply names the broker.</li>
+        <li>Bulb opens MQTT/TLS to the advertised host:port.</li>
+        <li>Bridge relays bulb topics ↔ HA&rsquo;s Mosquitto.</li>
+        <li>Entities come from <code>sengled_udp</code> over UDP — <strong>independent of 1–3.</strong></li>
+      </ol>
+      <div class="ok">
+        <div class="co-hd">The two planes are deliberately independent</div>
+        <p>
+          Control and entities ride UDP 9080 and work with the add-on stopped. The add-on&rsquo;s job
+          is to satisfy the bulb&rsquo;s cloud check so pairing completes and the bulb stops retrying
+          — plus expose the richer MQTT surface. <strong>A bug in your replacement cloud must not be
+          able to take the lights out.</strong>
+        </p>
+      </div>
+
+      <h3 id="mqttunlock">💡 This is also how you get effects and transitions back</h3>
+      <div class="ok">
+        <p>
+          <a href="#ha">§04</a> lists effects, gradient/transition timing and group commands as
+          unavailable. That&rsquo;s true of <strong>UDP</strong> — but they&rsquo;re documented on the
+          <strong>MQTT</strong> side (<code>wifielement/{MAC}/update</code>).
+        </p>
+        <p>
+          <strong>Those capabilities were never missing from the bulb. They were missing from the
+          pipe.</strong> Standing up this broker is what makes them reachable, so the add-on
+          isn&rsquo;t just plumbing to keep bulbs quiet — it&rsquo;s the route to the feature set UDP
+          forced us to write off. <em>(Upstream marks them untested too, and we haven&rsquo;t reached
+          them — blocked on provisioning.)</em>
+        </p>
+      </div>
+
+      <h3>Protocol details worth knowing</h3>
+      <p><code>POST|PUT /life2/device/accessCloud.json</code> →</p>
+      <pre><code>{"messageCode":"200","info":"OK","description":"正常","success":true}</code></pre>
+      <p><code>GET|POST /jbalancer/new/bimqtt</code> →</p>
+      <pre><code>{"protocal":"mqtt","host":"&lt;advertised_host&gt;","port":&lt;mqtt_port&gt;}</code></pre>
+      <div class="warn">
+        <div class="co-hd">⚠ <code>"protocal"</code> is misspelled in the real protocol</div>
+        <p>
+          Preserve it verbatim — &ldquo;fixing&rdquo; the typo breaks the bulb. A good reason to
+          import upstream&rsquo;s handler rather than reimplement it.
+        </p>
+      </div>
+      <p>
+        The broker is amqtt with TLS and <code>allow_anonymous</code>, and upstream patches
+        amqtt&rsquo;s SSL context so client certificates aren&rsquo;t required (bulbs present none).
+        The CA is self-signed and generated locally — which tells you something useful:
+        <strong>the bulbs cannot be validating the server certificate</strong>, or a randomly
+        generated local CA could never work.
+      </p>
+
+      <h3>Bridge loop prevention</h3>
+      <p>
+        A naive bidirectional relay on <code>wifielement/#</code> ping-pongs forever. Rather than
+        deduplicating messages (stateful, fragile under QoS-1 redelivery), give the two directions
+        <strong>provably disjoint topic sets</strong>:
+      </p>
+      <div class="tscroll">
+        <table>
+          <thead><tr><th>Direction</th><th>Topics</th></tr></thead>
+          <tbody>
+            <tr><td>bulbs → HA</td><td>everything under <code>wifielement/#</code> <strong>except</strong> <code>*/update</code></td></tr>
+            <tr><td>HA → bulbs</td><td><strong>only</strong> <code>wifielement/+/update</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        No topic is eligible both ways, so a round trip is impossible by construction. The only cost
+        is that HA doesn&rsquo;t see its own commands echoed back — no loss, since HA published them.
+      </p>
+
+      <h3>Configuration that matters</h3>
+      <pre><code>advertised_host: "&lt;HA_IP_FACING_BULBS&gt;"   <span class="cmt"># REQUIRED — see below</span>
+http_port: 57542
+mqtt_port: 18883       <span class="cmt"># NOT 8883/8884 — Mosquitto owns both</span>
+bridge_enabled: true
+bridge_host: "core-mosquitto"
+bridge_port: 1883</code></pre>
+      <p>Then pair with the host and port made explicit — <strong>never rely on the default</strong>:</p>
+      <pre><code>python sengled_tool.py --setup-wifi \
+  --ssid YOUR_WIFI_SSID --password YOUR_WIFI_PASSWORD \
+  --http-server-ip &lt;HA_IP_FACING_BULBS&gt; \
+  --http-port 57542 \
+  --broker-ip &lt;HA_IP_FACING_BULBS&gt;</code></pre>
+      <p>
+        <strong><code>advertised_host</code> is mandatory and the add-on should refuse to start
+        without it.</strong> Running bridge-networked it cannot see which host interface faces the
+        bulbs, and upstream&rsquo;s <code>get_local_ip()</code> uses the &ldquo;connect to
+        8.8.8.8&rdquo; trick — returning whatever the <em>default route</em> uses, reliably the wrong
+        leg on a multi-homed HA box. Since bulbs persist the value, <strong>a wrong guess costs a
+        re-pair of every bulb. Failing loudly beats silently baking in a dead address.</strong>
+      </p>
+      <p>
+        <strong>MQTT on 18883, not 8883.</strong> The official Mosquitto add-on binds host ports
+        <strong>1883, 1884, 8883 and 8884</strong>, so upstream&rsquo;s hardcoded 8883 <em>and</em> the
+        obvious 8884 fallback are both already taken on a typical HA box — either mapping makes the
+        container fail to start. Since the bulb is <em>told</em> the port in the <code>bimqtt</code>
+        reply, an unconventional port costs nothing. <small>(Precedent: the FalconFour add-on used
+        28527 for MQTT and 54448 for HTTP — good evidence bulbs honour arbitrary advertised
+        ports.)</small>
+      </p>
+
+      <h3>Add-on build notes — two real deploy blockers</h3>
+      <p>Both cost us a build cycle, and neither is obvious from the error message.</p>
+
+      <div class="warn">
+        <div class="co-hd">1 — Alpine&rsquo;s <code>py3-psutil</code> cannot be upgraded to what amqtt needs</div>
+        <p>
+          <code>amqtt</code> requires <strong>psutil ≥ 7</strong>. Installing Alpine&rsquo;s
+          <code>py3-psutil</code> via <code>apk</code> gets you a <strong>distutils-based</strong>
+          build that <strong>pip cannot upgrade over</strong> — the upgrade fails rather than
+          replacing it.
+        </p>
+        <p>
+          <strong>Fix: drop <code>py3-psutil</code> from the <code>apk add</code> list entirely</strong>
+          and let pip fetch the <code>musllinux</code> wheel. The distro package isn&rsquo;t saving you
+          a compile here; it&rsquo;s actively blocking the version you need.
+        </p>
+      </div>
+
+      <div class="warn">
+        <div class="co-hd">2 — <code>bashio::config</code> gets &ldquo;forbidden&rdquo; from the Supervisor API</div>
+        <p>
+          Reading options via <code>bashio::config</code> failed with a <strong><code>forbidden</code></strong>
+          error from the Supervisor API — <strong>even with <code>hassio_api: true</code> set in
+          <code>config.yaml</code> and after a full rebuild.</strong>
+        </p>
+        <p>
+          <strong>Fix: skip the API and read the options file directly.</strong> The Supervisor writes
+          your add-on&rsquo;s resolved options to <code>/data/options.json</code>, so <code>jq</code>
+          gets the same values with no API dependency and no permissions surface:
+        </p>
+        <pre><code>ADVERTISED_HOST=$(jq -r '.advertised_host // empty' /data/options.json)
+MQTT_PORT=$(jq -r '.mqtt_port // 18883' /data/options.json)</code></pre>
+        <p>
+          Fewer moving parts than debugging the API grant, and it works identically in local and store
+          installs.
+        </p>
+      </div>
+
+      <div class="note">
+        <p>
+          <small>A prior note predicted apk package names and <code>bashio</code> option rendering
+          would &ldquo;fail loudly at build/start, not subtly&rdquo; — both did exactly that. Loud
+          failures, correctly predicted, and still two build cycles.</small>
+        </p>
+      </div>
+
+      <h3>⚖️ On redistribution</h3>
+      <div class="note">
+        <p>
+          <strong><code>SengledTools</code> ships no LICENSE file</strong>, so its source carries no
+          granted redistribution permission (default: all rights reserved). The add-on therefore
+          <strong>clones upstream at build time at a pinned ref</strong> rather than vendoring it —
+          your machine fetches upstream, and nothing of theirs is redistributed. If you build
+          something similar and intend to publish it, do the same.
+        </p>
+        <p>That&rsquo;s also why this project documents the architecture rather than shipping the
+          add-on source.</p>
+      </div>
+    </section>
+
     <!-- ══════════ PATH 2 ══════════ -->
     <section id="path2">
-      <h2><span class="sec-num">2</span>Local MQTT server emulation<span class="pill adv">Alternative</span></h2>
+      <h2><span class="sec-num">2</span>Local MQTT server emulation<span class="pill adv">Third-party alternative</span></h2>
       <p>
         A heavier alternative to Path 1: run a <strong>full local replacement for Sengled&rsquo;s
         cloud</strong> and let stock bulbs connect to it as if nothing had changed.
@@ -1227,11 +1680,21 @@ light:
     <section id="path4">
       <h2><span class="sec-num">4</span>UART flash to open firmware<span class="pill exp">⚠ Advanced</span></h2>
       <div class="warn">
+        <p><strong>Advanced. Unexplored on this specific module. Requires mains-voltage teardown.</strong></p>
+      </div>
+      <div class="ok">
+        <div class="co-hd">📈 This path&rsquo;s standing improved</div>
         <p>
-          <strong>Advanced. Unexplored on this specific module. Requires mains-voltage
-          teardown.</strong> You do not need this to get the bulb into Home Assistant —
-          <a href="#path1">Path&nbsp;1</a> already does that. This is for owning the firmware
-          outright.
+          An earlier revision said <em>&ldquo;you do not need this — Path 1 already gets the bulb into
+          Home Assistant.&rdquo;</em> That is no longer something I can assert: on this hardware
+          <a href="#openissue">Path 1 stalls at provisioning</a>.
+        </p>
+        <p>
+          Path 4 <strong>bypasses Sengled&rsquo;s provisioning entirely</strong> — with ESPHome on the
+          bulb you configure WiFi yourself, and none of the association/PMF questions apply. It is
+          still a mains-voltage teardown with zero prior art on this module, so not a casual next
+          step. But it is <strong>no longer clearly the worse trade</strong>, and if the open issue
+          turns out to be chip-related rather than network-related, it may become the only route.
         </p>
       </div>
 
@@ -1593,6 +2056,7 @@ light:
             <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/02-ota-path.md"><code>02-ota-path.md</code></a></td><td>The no-solder verdict, SengledTools capability matrix, <code>--force-flash</code> hazard</td></tr>
             <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/03-uart-flash.md"><code>03-uart-flash.md</code></a></td><td>Serial flashing procedures + full mains-safety treatment</td></tr>
             <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/05-ha-features.md"><code>05-ha-features.md</code></a></td><td>Full feature → HA entity matrix, protocol caveats, smoke-test plan</td></tr>
+            <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/06-our-ha-app.md"><code>06-our-ha-app.md</code></a></td><td>The replacement-cloud add-on: architecture, protocol details, bridge loop prevention, what&rsquo;s unverified</td></tr>
           </tbody>
         </table>
       </div>

@@ -6,20 +6,41 @@ no vendor cloud, no account, no app, integrated into Home Assistant.
 
 > ## ⚡ The short version
 >
-> **You do not need to flash anything. You do not need to solder anything.**
+> **The no-flash path is the right thing to try first — and on our own W12-N15 it did not
+> complete.**
 >
-> Sengled's protocol has been reverse-engineered. You provision the bulb from a laptop over the
-> bulb's own WiFi AP, then drive it from Home Assistant over plain **UDP on port 9080**. No cloud,
-> no MQTT broker, no flashing, no teardown, ~5 minutes per bulb.
+> Sengled's protocol has been reverse-engineered, so in principle you provision the bulb from a
+> laptop over its own WiFi AP and then drive it from Home Assistant over plain **UDP port 9080** —
+> no cloud, no broker, no flashing, no teardown. That's
+> [Path 1](#path-1--solderless-local-control), and it is **confirmed working on the ESP8266 Sengled
+> models** (`W31-N11`, `W31-N15`).
 >
-> That's **[Path 1](#path-1--solderless-local-control-recommended)**, and a working Home Assistant
-> integration **already exists**. It's the recommended path for *every* Sengled WiFi bulb —
-> including the ones that cannot be flashed at all, which (as it turns out)
-> **[includes this one](#the-hardware-confirmed)**.
+> **On our RTL8710BN hardware, provisioning stalls:** the bulb accepts the WiFi credentials, never
+> joins the network, takes no DHCP lease, and reverts to its own SoftAP.
+> **[That open issue is documented in full](#-open-issue-provisioning-does-not-complete-on-w12-n15)**,
+> including what we ruled out.
+>
+> The [local replacement-cloud add-on](#5-the-local-replacement-cloud-add-on) *does* work
+> structurally, and it's the correct architecture on a segmented network. So this repo is currently
+> **a working server, a confirmed chip ID, and one unresolved provisioning failure** — documented
+> honestly, because a guide that claims a success it didn't get is worse than no guide.
 
-**Status:** Hardware identification is **complete and confirmed**. The Path 1 software exists and
-is in use upstream; the extended feature set described in
-[§4](#4-what-you-get-in-home-assistant) is written but 🚧 **not yet smoke-tested on hardware**.
+## Honest status
+
+| Thing | Status |
+|---|---|
+| Hardware identification | ✅ **Confirmed** — `WF864SM-M6` / MX1290 / RTL8710BN, three independent ways |
+| Not a Tuya device | ✅ **Confirmed** — Tuya exploits ruled out |
+| Path 1 on **ESP8266** models (`W31-*`) | ✅ Works — upstream-supported |
+| **Path 1 on W12-N15 (this bulb)** | ❌ **Provisioning does not complete.** [Under investigation](#-open-issue-provisioning-does-not-complete-on-w12-n15) |
+| Local replacement-cloud add-on | ✅ **Builds and runs on HA**, serves both endpoints + MQTT broker |
+| Add-on ↔ bulb session | 🚧 Untested — blocked on provisioning |
+| Extended HA entity set (22/bulb) | 🚧 Written, not smoke-tested on hardware |
+| Wired UART flashing (Path 4) | 🚧 Toolchain confirmed, zero prior art on this module |
+
+**If you have a `W31-N11` or `W31-N15`**, this guide should work end to end.
+**If you have a `W12-N15` like ours**, expect to hit the open issue — and please tell us if you get
+past it.
 
 ---
 
@@ -30,9 +51,11 @@ is in use upstream; the extended feature set described in
 | **0** | [Identify your module — 5 minutes, no teardown](#0-identify-your-module) | Decides which paths are open to you |
 | **1** | [What this bulb actually is](#1-what-this-bulb-actually-is) | Confirmed hardware; genuine Sengled, not Tuya |
 | **2** | [Why the vendor app doesn't work](#2-why-the-vendor-app-doesnt-work) | Context — not your fault |
-| **3** | [**Path 1 — solderless local control**](#path-1--solderless-local-control-recommended) | ✅ **Recommended.** Any bulb, no hardware work. |
+| **3** | [**Path 1 — solderless local control**](#path-1--solderless-local-control) | Try first. ✅ ESP8266 models · ❌ stalls on W12-N15 |
+| — | [⚠️ **Open issue: provisioning stalls on W12-N15**](#-open-issue-provisioning-does-not-complete-on-w12-n15) | The unresolved blocker, in full |
 | **4** | [What you get in Home Assistant](#4-what-you-get-in-home-assistant) | Feature matrix + honest gaps |
-| **5** | [Path 2 — local MQTT emulation](#path-2--local-mqtt-server-emulation) | Alternative to Path 1 |
+| **5** | [The local replacement-cloud add-on](#5-the-local-replacement-cloud-add-on) | ✅ Works. Correct architecture for a segmented network. |
+| — | [Path 2 — `ha-sengled-local`](#path-2--local-mqtt-server-emulation) | Third-party alternative |
 | **6** | [Path 3 — solderless OTA flash](#path-3--solderless-ota-flash) | ESP8266 (WF863) only — **not this bulb** |
 | **7** | [Path 4 — UART flash to open firmware](#path-4--uart-flash-to-open-firmware) | Wired, unexplored on this module, genuinely possible |
 | **8** | [Ruled out: the Tuya exploits](#8-ruled-out-the-tuya-exploits) | Why they can't work here |
@@ -56,7 +79,7 @@ It reads `Contains FCC ID: 2AGN8-WF86x`.
 | `2AGN8-WF862` | WF862 | MXCHIP MX1290 | ❌ no | ⚠️ Path 4 |
 | `P53-EMW3091` | EMW3091 | MXCHIP MX1290 | ❌ no | ⚠️ Path 4 |
 
-**[Path 1](#path-1--solderless-local-control-recommended) works on every row**, so you can start
+**[Path 1](#path-1--solderless-local-control) works on every row**, so you can start
 there regardless of what you find.
 
 ### Easier still: ask the bulb over the network
@@ -202,7 +225,7 @@ WiFi line depended on the cloud, and that's the line this bulb is in.
 
 ---
 
-## Path 1 — solderless local control ✅ recommended
+## Path 1 — solderless local control
 
 **No flashing. No soldering. No teardown. No Sengled account. No app. No MQTT broker.**
 
@@ -266,17 +289,126 @@ selection, and a certificate SAN that breaks when the host IP changes. **PR #63 
 boundary. Add each bulb **by IP** via the manual step instead. Unicast UDP 9080 reachability is all
 that's actually required.
 
-### Why this is trustworthy for *this* model
+### 📝 Correction: this used to say the path was proven on this model
 
-`SengledTools` **PR #63** was tested on *"W12-N15 bulbs on stock firmware"* and fixed exactly the
-out-of-box-activation / credentials-don't-persist failure. **W12-N15 is this bulb.** The
-recommended path isn't theoretical here — it's the path someone already debugged on this hardware.
+An earlier revision of this document cited `SengledTools` **PR #63** — tested on *"W12-N15 bulbs on
+stock firmware"* — and concluded *"W12-N15 is this bulb, so the recommended path isn't theoretical
+here."* That was **my single strongest confidence claim, and field testing contradicted it.**
+
+Our W12-N15 does not complete provisioning. The upstream PR text stands on its own; what was wrong
+was my inference that a matching model string guaranteed our unit would work. Model numbers get
+reused across hardware revisions, and *ours* is an RTL8710BN. **"Someone reported success on a
+device with the same model string" is weaker evidence than it reads as.**
+
+See [the open issue](#-open-issue-provisioning-does-not-complete-on-w12-n15) for where it actually
+stops.
 
 ### ⚠️ Avoid the older cloud-proxy integrations
 
 `jfarmer08/ha-sengledapi`, `ripleyeldridge/…`, and `kylev/ha-sengledng` all proxy the **Sengled
 cloud API**. Only post-outage designs (`sengled_udp`, `ha-sengled-local`) work, because only they
 assume the cloud is unavailable.
+
+---
+
+## ⚠️ OPEN ISSUE: provisioning does not complete on W12-N15
+
+**This is the current blocker, and it is unresolved.** Documented in detail because the symptom is
+specific enough to be recognisable, and because a guide that hides its failures wastes your evening
+instead of ours.
+
+### What happens
+
+| Step | Result |
+|---|---|
+| Factory reset (flick power 5+ times) | ✅ Bulb raises its SoftAP `Sengled_Wi-Fi Bulb_XXXX` |
+| Laptop joins the SoftAP | ✅ Bulb reachable at `192.168.8.1`, UDP 9080 answers |
+| `--setup-wifi` sends credentials | ✅ Bulb **accepts** the `setParamsRequest` |
+| Bulb joins the target network | ❌ **Never happens** |
+| DHCP lease on the target network | ❌ **No lease ever appears** |
+| Bulb state afterwards | ↩️ **Reverts to its own SoftAP** |
+
+So the credential handoff is accepted and then nothing downstream of it occurs. The bulb behaves as
+though the association attempt failed and it fell back.
+
+> ### Don't be fooled by the wizard's verdict — in either direction
+> `--setup-wifi` polls **its own local** `/status` endpoint to decide success, and refuses to count
+> loopback hits. If you pointed `--http-server-ip` at Home Assistant (as you should — see
+> [§5](#5-the-local-replacement-cloud-add-on)), the bulb's callbacks land *there*, the local
+> `/status` never flips, and **the wizard times out after ~180 s even when pairing worked.**
+>
+> That means a wizard timeout proves nothing on its own. **Judge by these two things instead:**
+> a DHCP lease appearing for the bulb, and the add-on log showing both endpoints being served. In
+> our case *neither* happened — which is why this is a real failure and not the known false
+> negative.
+
+### Hypothesis 1 — SengledTools provisioning is ESP8266-only
+
+Plausible on its face: upstream's `sengled/constants.py` declares
+
+```python
+SUPPORTED_TYPECODES = {"W31-N11", "W31-N15"}
+COMPATIBLE_IDENTIFY_MARKERS = ("ESP8266",)
+```
+
+and our bulb is neither — it's `W12-N15` on a Realtek RTL8710BN.
+
+**But reading the code, this does not hold up as an explanation.** Those two constants are
+referenced in exactly one place (`wifi_setup.py:514-519`), where they only sort the bulb into
+`supported` / `untested` / `not_supported` and stash that as `support_info` **for a later flashing
+prompt**. There is:
+
+- **no model gate before the credentials are sent** (`setParamsRequest`, `wifi_setup.py:408`), and
+- **no early abort** on `not_supported`.
+
+The classification block also runs *after* MQTT attributes are read — i.e. after the bulb is
+already talking. **So the provisioning path is chip-agnostic as written, and this hypothesis does
+not explain our symptom.** It would explain a *refusal*; we get an acceptance followed by silence.
+
+*This narrowing came from reading upstream source, not from testing — if you have a W31 bulb and a
+W12 bulb side by side, that comparison would settle it properly.*
+
+### Hypothesis 2 — the radio can't associate with the target SSID *(current best guess)*
+
+This fits the symptom shape much better: credentials accepted, association fails, fall back to
+SoftAP. Candidate causes, all things a modern AP does by default and a 2020-era Realtek part may
+not tolerate:
+
+| Suspect | Why it's plausible |
+|---|---|
+| **PMF (802.11w) required** | A client that can't do management-frame protection is refused outright at association. Very common default on WPA2/WPA3-transition SSIDs. |
+| **Fast roaming (802.11r / 802.11k/v)** | Older clients sometimes fail association on FT-enabled SSIDs rather than falling back gracefully. |
+| **WPA3 / mixed-mode SAE** | A WPA2-only client may fail on a transition-mode SSID. |
+| **Band steering / a shared 2.4+5 GHz SSID** | The bulb is 2.4 GHz-only and may be steered at a band it cannot see. |
+| **Hidden SSID or exotic characters in the PSK** | Classic provisioning-path breakage. |
+
+### If you hit this, try this
+
+The cheapest decisive test is to **remove the network from the equation entirely**:
+
+1. Stand up a **throwaway 2.4 GHz-only SSID**: WPA2-PSK, **PMF disabled**, **no 802.11r/k/v**, not
+   hidden, plain-ASCII password, no band steering. A phone hotspot works.
+2. Provision the bulb onto *that*.
+3. **If it joins:** the bulb and the tool are fine, and your production SSID's security features are
+   the cause. Narrow down by re-enabling one at a time.
+4. **If it still doesn't join:** the problem is the bulb/tool combination on RTL8710BN hardware, and
+   Hypothesis 1 deserves another look despite the code reading above.
+
+Either outcome is genuinely useful — it splits the two hypotheses cleanly. **If you run this test,
+on either result, please open an issue.** Right now this repo has one data point.
+
+### What this means for your options
+
+- **The bulb is not bricked and nothing is lost.** It still raises its SoftAP, still answers UDP
+  9080, and [`tools/probe_bulb.py`](tools/probe_bulb.py) still talks to it. You can retry
+  indefinitely.
+- **[Path 2](#path-2--local-mqtt-server-emulation)** (`ha-sengled-local`) is worth trying — it's an
+  independent implementation of the same idea, so it may not share whatever this bug is.
+- **[Path 4](#path-4--uart-flash-to-open-firmware)** (wired UART) becomes relatively more
+  attractive than it looked when Path 1 seemed certain. It bypasses Sengled's provisioning entirely
+  — with ESPHome on the bulb, you configure WiFi yourself and none of this applies. It's still a
+  mains-voltage teardown with no prior art on this module, so it isn't a casual next step, but it is
+  no longer clearly the worse trade.
 
 ---
 
@@ -331,12 +463,16 @@ The bundled integration covers the light itself. An extended build adds diagnost
 
 ### What you do NOT get over UDP — and why
 
-| Missing | Why |
-|---|---|
-| **Effects** | MQTT-only. Absent from the UDP command surface entirely. |
-| **Transitions / gradient time** | MQTT-only. Use HA-side transitions instead. |
-| **Multi-bulb group commands** | MQTT-only — but unnecessary: use a native **HA light group**, which scenes and voice assistants already understand. |
-| **RSSI** | Not in the protocol. `search_devices` returns no signal field. Connectivity is represented by entity availability plus a *Last seen* timestamp. |
+| Missing over UDP | Why | Recoverable? |
+|---|---|---|
+| **Effects** | Absent from the UDP command surface entirely | ✅ Documented on the **MQTT** side — see [§5](#-this-is-also-how-you-get-effects-and-transitions-back) |
+| **Transitions / gradient time** | UDP has no gradient command | ✅ Same — MQTT has a Gradient/Transition section |
+| **Multi-bulb group commands** | MQTT-only | ✅ MQTT — but unnecessary: use a native **HA light group**, which scenes and voice assistants already understand |
+| **RSSI** | **Not in the protocol at all.** `search_devices` returns no signal field | ❌ No. Connectivity is entity availability plus a *Last seen* timestamp |
+
+> **Three of those four are a limitation of the *transport*, not the bulb.** Standing up the
+> [local MQTT broker](#5-the-local-replacement-cloud-add-on) is what makes them reachable. Only RSSI
+> is genuinely absent from the firmware.
 
 ### Protocol caveats worth knowing before you build automations
 
@@ -388,6 +524,187 @@ light:
 One caveat: a group command becomes **N sequential UDP exchanges**, each with a ~3 s timeout. Eight
 *offline* bulbs would mean a 24 s stall. Replies normally arrive in milliseconds — but don't put a
 group call in a tight automation loop.
+
+---
+
+## 5. The local replacement-cloud add-on
+
+**Status: ✅ builds and runs on Home Assistant**, serving both provisioning endpoints and an MQTT
+broker on the bulb-facing network. This is the part of the stack that *does* work, and on a
+segmented network it is not optional polish — it is **load-bearing for pairing**.
+
+### Why the server must live on Home Assistant
+
+This is the single most important architectural fact here, and it's easy to get wrong in a way you
+can only fix by re-pairing every bulb.
+
+During provisioning, the tool writes **absolute URLs** into the bulb:
+
+```python
+"appServerDomain": f"http://{http_host}:{http_port}/life2/device/accessCloud.json",
+"jbalancerDomain": f"http://{http_host}:{http_port}/jbalancer/new/bimqtt",
+```
+
+**The bulb persists these and calls them for the rest of its life.** And by default `http_host` is
+*the pairing machine's own LAN IP*.
+
+So if you pair from a laptop on your admin network, you permanently bake in an address that your IoT
+VLAN's firewall policy can never reach. The bulb will call it forever and never get an answer. **The
+only fix is re-pairing.** That constraint is what forces the server onto Home Assistant — the one
+host that is reliably on the bulbs' network.
+
+### Architecture
+
+```
+   ┌──────────── IoT VLAN (bulbs) ─────────────┐
+   │  bulb ──1── HTTP  (accessCloud + bimqtt) ─┐│
+   │   └───2──── MQTT/TLS  wifielement/#  ───┐ ││
+   └─────────────────────────────────────────┼─┼┘
+                                             │ │
+                  ┌──────────────────────────▼─▼──┐
+                  │ Home Assistant (bulb-facing)  │
+                  │  ┌─────────────────────────┐  │
+                  │  │ ADD-ON                  │  │
+                  │  │  SetupHTTPServer   ←────┼──┼─ upstream code
+                  │  │  EmbeddedBroker    ←────┼──┼─ upstream code
+                  │  │  MqttBridge             │  │
+                  │  └───────────┬─────────────┘  │
+                  │        3     ▼                │
+                  │          Mosquitto → HA core  │
+                  │                        ▲      │
+                  │        4  sengled_udp ─┘      │──── UDP :9080 ──> bulbs
+                  └───────────────────────────────┘
+```
+
+1. Bulb calls its persisted URLs; the `bimqtt` reply names the broker.
+2. Bulb opens MQTT/TLS to the advertised host:port.
+3. Bridge relays bulb topics ↔ HA's Mosquitto.
+4. Entities come from `sengled_udp` over UDP — **independent of 1–3.**
+
+> **The two planes are deliberately independent.** Control and entities ride UDP 9080 and work with
+> the add-on stopped. The add-on's job is to satisfy the bulb's cloud check so pairing completes and
+> the bulb stops retrying — plus expose the richer MQTT surface. **A bug in your replacement cloud
+> must not be able to take the lights out.**
+
+### 💡 This is also how you get effects and transitions back
+
+[§4](#4-what-you-get-in-home-assistant) lists effects, gradient/transition timing and group commands
+as unavailable. That's true of **UDP** — but they're documented on the **MQTT** side
+(`wifielement/{MAC}/update`).
+
+**Those capabilities were never missing from the bulb. They were missing from the pipe.** Standing up
+this broker is what makes them reachable, so the add-on isn't just plumbing to keep bulbs quiet — it's
+the route to the feature set UDP forced us to write off. *(Upstream marks them untested too, and we
+haven't reached them — blocked on provisioning.)*
+
+### Protocol details worth knowing
+
+`POST|PUT /life2/device/accessCloud.json` →
+
+```json
+{"messageCode":"200","info":"OK","description":"正常","success":true}
+```
+
+`GET|POST /jbalancer/new/bimqtt` →
+
+```json
+{"protocal":"mqtt","host":"<advertised_host>","port":<mqtt_port>}
+```
+
+> ⚠️ **`"protocal"` is misspelled in the real protocol.** Preserve it verbatim — "fixing" the typo
+> breaks the bulb. This is a good reason to import upstream's handler rather than reimplement it.
+
+The broker is amqtt with TLS and `allow_anonymous`, and upstream patches amqtt's SSL context so
+client certificates aren't required (bulbs present none). The CA is self-signed and generated
+locally — which tells you something useful: **the bulbs cannot be validating the server
+certificate**, or a randomly generated local CA could never work.
+
+### Bridge loop prevention
+
+A naive bidirectional relay on `wifielement/#` ping-pongs forever. Rather than deduplicating
+messages (stateful, fragile under QoS-1 redelivery), give the two directions **provably disjoint
+topic sets**:
+
+| Direction | Topics |
+|---|---|
+| bulbs → HA | everything under `wifielement/#` **except** `*/update` |
+| HA → bulbs | **only** `wifielement/+/update` |
+
+No topic is eligible both ways, so a round trip is impossible by construction. The only cost is that
+HA doesn't see its own commands echoed back — no loss, since HA published them.
+
+### Configuration that matters
+
+```yaml
+advertised_host: "<HA_IP_FACING_BULBS>"   # REQUIRED — see below
+http_port: 57542
+mqtt_port: 18883       # NOT 8883/8884 — Mosquitto owns both
+bridge_enabled: true
+bridge_host: "core-mosquitto"
+bridge_port: 1883
+```
+
+Then pair with the host and port made explicit — **never rely on the default**:
+
+```bash
+python sengled_tool.py --setup-wifi   --ssid YOUR_WIFI_SSID --password YOUR_WIFI_PASSWORD   --http-server-ip <HA_IP_FACING_BULBS>   --http-port 57542   --broker-ip <HA_IP_FACING_BULBS>
+```
+
+**`advertised_host` is mandatory and the add-on should refuse to start without it.** Running
+bridge-networked, it cannot see which host interface faces the bulbs, and upstream's `get_local_ip()`
+uses the "connect to 8.8.8.8" trick — which returns whatever the *default route* uses, reliably the
+wrong leg on a multi-homed HA box. Since bulbs persist the value, **a wrong guess costs a re-pair of
+every bulb. Failing loudly beats silently baking in a dead address.**
+
+**MQTT on 18883, not 8883.** The official Mosquitto add-on binds host ports **1883, 1884, 8883 and
+8884**, so upstream's hardcoded 8883 *and* the obvious 8884 fallback are both already taken on a
+typical HA box — either mapping makes the container fail to start. Since the bulb is *told* the port
+in the `bimqtt` reply, an unconventional port costs nothing. (Precedent: the FalconFour add-on used
+28527 for MQTT and 54448 for HTTP, good evidence bulbs honour arbitrary advertised ports.)
+
+### Add-on build notes — two real deploy blockers
+
+Both of these cost us a build cycle, and neither is obvious from the error message.
+
+#### 1. Alpine's `py3-psutil` cannot be upgraded to what `amqtt` needs
+
+`amqtt` requires **psutil ≥ 7**. Installing Alpine's `py3-psutil` via `apk` gets you a
+**distutils-based** build that **pip cannot upgrade over** — the upgrade fails rather than replacing
+it.
+
+> **Fix: drop `py3-psutil` from the `apk add` list entirely** and let pip fetch the `musllinux`
+> wheel. The distro package is not saving you a compile here; it's actively blocking the version you
+> need.
+
+#### 2. `bashio::config` gets "forbidden" from the Supervisor API
+
+Reading options via `bashio::config` failed with a **`forbidden`** error from the Supervisor API —
+**even with `hassio_api: true` set in `config.yaml` and after a full rebuild.**
+
+> **Fix: skip the API and read the options file directly.** The Supervisor writes your add-on's
+> resolved options to `/data/options.json`, so `jq` gets you the same values with no API dependency
+> and no permissions surface:
+>
+> ```bash
+> ADVERTISED_HOST=$(jq -r '.advertised_host // empty' /data/options.json)
+> MQTT_PORT=$(jq -r '.mqtt_port // 18883' /data/options.json)
+> ```
+>
+> Fewer moving parts than debugging the API grant, and it works identically in local and store
+> installs.
+
+*(A prior note predicted apk package names and `bashio` option rendering would "fail loudly at
+build/start, not subtly" — both did exactly that. Loud failures, correctly predicted, and still two
+build cycles.)*
+
+### ⚖️ On redistribution
+
+**`SengledTools` ships no LICENSE file**, so its source carries no granted redistribution permission
+(default: all rights reserved). The add-on therefore **clones upstream at build time at a pinned
+ref** rather than vendoring it — your machine fetches upstream, and nothing of theirs is
+redistributed. If you build something similar and intend to publish it, do the same.
+
+That's also why this repo documents the architecture rather than shipping the add-on source.
 
 ---
 
@@ -444,7 +761,7 @@ core.**
 > can't execute. **The guard only ever protects an ESP8266.**
 
 If the allowlist blocks your bulb, that is the tool **correctly** telling you your module isn't
-supported. Use [Path 1](#path-1--solderless-local-control-recommended).
+supported. Use [Path 1](#path-1--solderless-local-control).
 
 ### 💡 What would unlock solderless flashing for this whole family
 
@@ -464,8 +781,17 @@ contribution available here.
 ## Path 4 — UART flash to open firmware
 
 > **⚠️ Advanced. Unexplored on this specific module. Requires mains-voltage teardown.**
-> You do not need this to get the bulb into Home Assistant — [Path 1](#path-1--solderless-local-control-recommended)
-> already does that. This is for owning the firmware outright.
+
+> ### 📈 This path's standing improved
+> An earlier revision said *"you do not need this — Path 1 already gets the bulb into Home
+> Assistant."* That is no longer something I can assert: on this hardware
+> [Path 1 stalls at provisioning](#-open-issue-provisioning-does-not-complete-on-w12-n15).
+>
+> Path 4 **bypasses Sengled's provisioning entirely** — with ESPHome on the bulb you configure WiFi
+> yourself, and none of the association/PMF questions apply. It is still a mains-voltage teardown
+> with zero prior art on this module, so it is not a casual next step. But it is **no longer clearly
+> the worse trade**, and if the open issue turns out to be chip-related rather than network-related,
+> it may become the only route.
 
 **This path is more viable than "MXCHIP" makes it sound.** MX1290 is a **Realtek RTL8710BN
 rebadge**, which puts it inside mature, well-trodden tooling:
@@ -681,6 +1007,7 @@ Raw working notes with sourcing and confidence levels are in [`research/`](resea
 | [`02-ota-path.md`](research/02-ota-path.md) | The no-solder verdict, SengledTools capability matrix, `--force-flash` hazard |
 | [`03-uart-flash.md`](research/03-uart-flash.md) | Serial flashing procedures + full mains-safety treatment |
 | [`05-ha-features.md`](research/05-ha-features.md) | Full feature → HA entity matrix, protocol caveats, smoke-test plan |
+| [`06-our-ha-app.md`](research/06-our-ha-app.md) | The replacement-cloud add-on: architecture, protocol details, bridge loop prevention, what's unverified |
 
 ### Tools
 
@@ -697,7 +1024,7 @@ can permanently brick the device. **You do this at your own risk.** The authors 
 for damage, injury, or death.
 
 **If you are not confident reading the mains-safety rules and following every one of them, use
-[Path 1](#path-1--solderless-local-control-recommended)** — no teardown, no soldering, no mains
+[Path 1](#path-1--solderless-local-control)** — no teardown, no soldering, no mains
 exposure. For almost everyone it is also simply the better answer.
 
 ## License
