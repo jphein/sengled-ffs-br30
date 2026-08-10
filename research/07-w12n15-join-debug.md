@@ -1,9 +1,9 @@
 # W12-N15 Wi-Fi Join Failure — Root Cause (tool side)
 
-**Status:** superseded in part — see the reconciliation note at the top of this file.
+**Status:** ROOT CAUSE IDENTIFIED (2026-08-09) · **Researcher:** Nebula
 **Symptom:** `--setup-wifi` reports *"Wi-Fi credentials accepted by bulb"* + *"saved for
 XX:XX:XX:XX:XX:XX"*, then **"[✗] Bulb did not contact required endpoints."** Add-on log shows
-**zero** endpoint hits, **no IoT-VLAN DHCP lease ever**, bulb **reverts to SoftAP**. Twice.
+**zero** endpoint hits, **no your IoT VLAN DHCP lease ever**, bulb **reverts to SoftAP**. Twice.
 
 ---
 
@@ -99,8 +99,8 @@ no usable diagnostic.
 
 ```
 python3 sengled_tool.py --setup-wifi \
-    --http-server-ip YOUR_HA_IP --http-port 57542 \
-    --broker-ip YOUR_HA_IP --broker-port 18883
+    --http-server-ip YOUR_LEASED_IP --http-port 57542 \
+    --broker-ip YOUR_LEASED_IP --broker-port 18883
 ```
 **Omit `--ssid` and `--password`** so the wizard goes interactive. Then read three things:
 
@@ -144,7 +144,7 @@ No DHCP lease ⇒ the bulb most likely never associated. Check on the AP serving
 
 ## 8. ✅ The MQTT port mismatch is MOOT for this failure — confirmed structurally
 
-The wizard logged `Using external MQTT broker: YOUR_HA_IP:8883` while the add-on listens on
+The wizard logged `Using external MQTT broker: YOUR_LEASED_IP:8883` while the add-on listens on
 **18883**. **This cannot explain the join failure**, and the reasoning is structural, not a guess:
 
 - The provisioning payload contains **only** `userID`, `appServerDomain`, `jbalancerDomain`,
@@ -199,7 +199,7 @@ ignoring the protocol, that is a genuinely new finding worth filing upstream.
 ---
 ---
 
-# ⚠️ §11 — PRIOR-ART CORRECTION (prior-art review, 2026-08-09)
+# ⚠️ §11 — PRIOR-ART CORRECTION (the priorart investigation, 2026-08-09, later same day)
 
 **§10 and the "no prior art" section above are WRONG on one decisive point, and it changes
 the hypothesis ranking.** The §1–§4 code analysis is correct and stands — this only overturns
@@ -338,7 +338,7 @@ discriminates, so **§5 remains the right next step.**
 ### Ordered checks (revised, cheapest first)
 1. **§5's interactive run** — unchanged and still first. It's the only step that yields real evidence.
 2. **Advertise an IP the bulb can reach** — run from a host with a your IoT VLAN leg, or pass
-   `--http-server-ip` / `--broker-ip` explicitly (HA has a your IoT VLAN leg at `YOUR_HA_IP`).
+   `--http-server-ip` / `--broker-ip` explicitly (HA has a your IoT VLAN leg at `YOUR_LEASED_IP`).
    Don't trust `get_local_ip()` on a multi-VLAN host.
 3. **Open your IoT VLAN → host `:57542/tcp` and `:18883/tcp`** on the router for the pairing window,
    then remove. Verify with a listener; don't assume.
@@ -412,17 +412,17 @@ associate" theory in one shot.
 ## Evidence 2 — dnsmasq on the router — 🎯 THE ACTUAL FAULT
 ```
 22:52:55 DHCPDISCOVER(br-lan.8) XX:XX:XX:XX:XX:XX
-22:52:55 DHCPOFFER(br-lan.8)   YOUR_LAN_IP XX:XX:XX:XX:XX:XX
+22:52:55 DHCPOFFER(br-lan.8)   YOUR_LEASED_IP XX:XX:XX:XX:XX:XX
 22:52:55 DHCPDISCOVER(br-lan.8) XX:XX:XX:XX:XX:XX
-22:52:55 DHCPOFFER(br-lan.8)   YOUR_LAN_IP XX:XX:XX:XX:XX:XX
+22:52:55 DHCPOFFER(br-lan.8)   YOUR_LEASED_IP XX:XX:XX:XX:XX:XX
    ... this repeats 10+ times across 14 seconds ...
 ```
 **There is never a `DHCPREQUEST`. There is never a `DHCPACK`.**
 The DHCP exchange is DISCOVER → OFFER → REQUEST → ACK; the bulb aborts after OFFER.
 
 - ✅ your IoT VLAN bridging works (`br-lan.8`) — offers reach the client's segment
-- ✅ Server responds in <1 s, every time, with a valid address (`YOUR_LAN_IP`)
-- ✅ Pool is healthy: `start=100 limit=150` (YOUR_LAN_IP–.249), **92 leases, 58 free** — not exhaustion
+- ✅ Server responds in <1 s, every time, with a valid address (`YOUR_LEASED_IP`)
+- ✅ Pool is healthy: `start=100 limit=150` (YOUR_LEASED_IP–.249), **92 leases, 58 free** — not exhaustion
 - ❌ Bulb never accepts the offer ⇒ no lease ⇒ firmware times out ~16 s ⇒ back to SoftAP
 
 ## Hypothesis testing — what I checked and what it showed
@@ -472,7 +472,7 @@ The bulb receives the OFFER and discards it. The most likely reason is the **con
 offer. your IoT VLAN's DHCP config carries a non-default option set:
 
 ```
-dhcp.iot.dhcp_option='3,YOUR_LAN_IP' '6,YOUR_LAN_IP' 'option:domain-search,lan,example.lan,example.net'
+dhcp.iot.dhcp_option='3,YOUR_LEASED_IP' '6,YOUR_LEASED_IP' 'option:domain-search,lan,example.lan,example.net'
 ```
 
 `option:domain-search` is **DHCP option 119 (RFC 3397)**, which uses compressed domain-name
@@ -485,7 +485,7 @@ they cannot parse. **"Repeated DISCOVER, valid OFFER, never a REQUEST" is the cl
 of an offer the client received but could not accept.**
 
 This also explains the contrast cleanly: the **AiDot bulb (different silicon/stack) got
-YOUR_LAN_IP with no trouble**, as did dozens of ESP-based devices on the same VLAN and SSID.
+YOUR_LEASED_IP with no trouble**, as did dozens of ESP-based devices on the same VLAN and SSID.
 Whatever is wrong is specific to this firmware's DHCP client, not to the network.
 
 ## ✅ RECOMMENDED MINIMAL TEST — a proposal for JP, NOT applied by me
@@ -503,7 +503,7 @@ Impact: your IoT VLAN clients lose DNS *search-suffix* convenience only. Routing
 (options 3 and 6 are untouched). Fully reversible with `uci add_list`.
 Then re-run provisioning and watch for **`DHCPREQUEST` + `DHCPACK`**:
 ```sh
-ssh root@YOUR_LAN_IP 'logread -f | grep -i "b0:ce:18"'
+ssh root@YOUR_ROUTER_IP 'logread -f | grep -i "b0:ce:18"'
 ```
 
 **Test B (if A fails) — hand the bulb a static lease** so it can skip discovery entirely, and
@@ -512,7 +512,7 @@ confirm whether it will talk at all with a known address.
 **Test C (diagnostic, no change) — packet-level truth.** Capture on the router to see the exact
 offer the bulb rejects:
 ```sh
-ssh root@YOUR_LAN_IP 'tcpdump -i br-lan.8 -n -s0 -vv port 67 or port 68'
+ssh root@YOUR_ROUTER_IP 'tcpdump -i br-lan.8 -n -s0 -vv port 67 or port 68'
 ```
 Read the OFFER's total length and option list. If it is near/over a small buffer bound, that
 confirms the hypothesis outright.
@@ -520,7 +520,7 @@ confirms the hypothesis outright.
 **Success criterion for all three: a `DHCPREQUEST` followed by `DHCPACK` in the dnsmasq log.**
 Until that appears, nothing else about the bulb's provisioning can be judged.
 
-## 🤝 Handoff — tool-side half
+## 🤝 Handoff to the ota investigation (tool-side half)
 The evidence **moves the problem off the network entirely** — but note it may *not* be
 tool-side either, since the bulb fails at plain DHCP, before any Sengled protocol runs.
 Two things worth checking on the tool side anyway:
@@ -528,7 +528,7 @@ Two things worth checking on the tool side anyway:
    to it are moot **for this failure** — don't chase them until DHCP completes.
 2. Once a lease appears, the next thing to verify is whether those URLs (built from
    `get_local_ip()` while the workstation sat on the bulb's 192.168.8.x SoftAP) are still reachable from
-   your IoT VLAN — a 192.168.8.x server address would be unreachable at YOUR_LAN_SUBNET.x and would produce a
+   your IoT VLAN — a 192.168.8.x server address would be unreachable at YOUR_LEASED_IP and would produce a
    *second*, similar-looking give-up.
 
 *Security note: AP PSKs were visible during this inspection and are deliberately NOT recorded
@@ -552,3 +552,609 @@ Verification coverage: **uci on 9/9** APs; **runtime hostapd on 4** (YOUR_LAN_IP
 The bulb fails at **plain DHCP**, before any Sengled/SengledTools protocol runs: it gets a valid `DHCPOFFER` and never sends `DHCPREQUEST`. No SengledTools code path is involved at that point. Handing this to the tool-side owner as "therefore it's provisioning" would send them hunting in the wrong file.
 
 **The open item is Test A** (drop DHCP option 119 / `option:domain-search` from the `iot` pool) — the only proposal that targets the observed failure.
+
+---
+
+# §11. DHCPOFFER received, no DHCPREQUEST — RTL8710BN / Ameba-Z lwIP analysis (2026-08-09)
+
+New field data: option 119 removed, **still** DHCPOFFER → silence. No lease.
+
+## 11.1 *** THE MECHANISM — lwIP has exactly one way to do this ***
+
+In lwIP, an OFFER that arrives and produces **no** DHCPREQUEST has essentially a single cause.
+`dhcp_handle_offer()` is guarded:
+
+```c
+static void dhcp_handle_offer(struct netif *netif, struct dhcp_msg *msg_in)
+{
+  /* obtain the server address */
+  if (dhcp_option_given(dhcp, DHCP_OPTION_IDX_SERVER_ID)) {
+      ...
+      ip4_addr_copy(dhcp->offered_ip_addr, msg_in->yiaddr);
+      dhcp_select(netif);          /* <-- the ONLY path that sends DHCPREQUEST */
+  } else {
+      LWIP_DEBUGF(..., ("dhcp_handle_offer(netif=%p) did not get server ID!\n", ...));
+      /* falls through, does nothing, no retry */
+  }
+}
+```
+
+> **If lwIP does not have DHCP option 54 (Server Identifier) *registered from its own parse*,
+> it silently drops the OFFER and never sends a REQUEST.** No error on the wire, no retry — it
+> just waits, times out, and (for the bulb) reverts to SoftAP. **That is precisely our symptom.**
+
+dnsmasq **always** sends option 54 — so this is almost certainly **not** a missing option. It is
+**`dhcp_parse_reply()` failing to reach or record option 54.** That reframes the whole fix:
+
+> ### The goal is not "remove the option that breaks it".
+> ### The goal is **make the option block small and simple enough that lwIP's parser survives
+> ### long enough to register option 54.**
+
+Why the parse aborts, in order of likelihood on a Realtek Ameba SDK (an old, vendor-patched
+lwIP — the Realtek stack is separately documented as buggy here; e.g. *enabling
+`LWIP_NETIF_HOSTNAME` in Realtek lwIP is known to break DHCP negotiation*):
+
+1. **Option block spans/overflows the parser's working buffer.** lwIP's DHCP option
+   handling is sized around `DHCP_OPTIONS_LEN` (**default 68 bytes**, `DHCP_MIN_OPTIONS_LEN`).
+   A modern OpenWrt OFFER easily exceeds that. Vendor-patched 1.4.x-era parsers abort or
+   truncate rather than skip cleanly.
+2. **Options arriving after the abort point are simply never registered** — so whether 54 is
+   seen is a function of *how far into the block it sits*, i.e. of total option volume.
+3. **Option overload (option 52) / `sname`+`file` field reuse** — a classic weak spot in
+   cut-down parsers.
+4. **pbuf boundary** — a long OFFER split across pbufs; `pbuf_copy_partial` returns short and
+   parsing bails.
+
+**Corollary that matters for the capture:** stripping options is not superstition — every byte
+removed moves option 54 earlier and shrinks the block toward the 68-byte comfort zone.
+
+## 11.2 🔴 SECOND, INDEPENDENT HYPOTHESIS — the broadcast flag
+
+Worth ruling out *first* because it is cheap and would explain everything:
+
+**If the bulb sets the BROADCAST flag (`flags = 0x8000`) in its DHCPDISCOVER but dnsmasq replies
+by unicast**, the bulb may never actually ingest the OFFER — even though your capture clearly
+shows a valid OFFER on the wire. Capture-on-the-AP ≠ received-by-the-client.
+
+**Diagnostic (do this in the capture):** read `bootp.flags` in the bulb's **DISCOVER**.
+- `0x8000` (broadcast requested) + a **unicast** OFFER (dst = the offered IP, not 255.255.255.255)
+  ⇒ **this is your bug**, and §11.5 fixes it in one line.
+- `0x0000` ⇒ broadcast flag is not the issue; go to §11.3/11.4.
+
+## 11.3 *** FIRST, READ THE BULB'S OWN PARAMETER REQUEST LIST (option 55) ***
+
+This is the highest-value single datum in the capture, and it should be read **before** changing
+any config:
+
+- dnsmasq, by default, **only sends options the client asked for** in its **option 55 (PRL)**,
+  plus a small mandatory set. So a bloated OFFER means either (a) the bulb requested a lot, or
+  (b) something is **force**-sending options.
+- **Capture `dhcp.option.request_list_item` from the DISCOVER.** If the bulb requests only
+  1/3/6/51/54, then a large OFFER means options are being force-fed — and the fix is to stop
+  forcing them, not to blanket-strip.
+- Also record the **total OFFER size** and the **byte offset of option 54** within the option
+  block. If 54 sits late (after 119/121/15/6), §11.1's ordering theory is directly confirmed.
+
+## 11.4 Ranked strip-list — what to remove from the OFFER, highest value first
+
+**Never strip:** **53** (message type), **54** (server ID — the whole point), **51** (lease
+time). Keep **1** (subnet mask) and **3** (router) — small, and the bulb needs them to be useful.
+
+| Rank | Option | Why | Typical bytes |
+|---|---|---|---|
+| **1** | **121** + **249** classless static routes | **Biggest single offender.** Variable-length, often tens of bytes, and Microsoft's 249 duplicates 121. A bulb needs neither. | 10–60+ |
+| **2** | **119** domain search | Already removed — **keep it removed**, it was correct, just not sufficient. | 10–40 |
+| **3** | **6** DNS servers — *reduce to ONE* | 4 bytes per server. Don't suppress entirely (the bulb must resolve nothing, but a zero-length list can upset parsers); pin a single resolver. | 4–12 |
+| **4** | **15** domain name | Pure padding for a bulb. | 5–20 |
+| **5** | **252** WPAD / **44–47** NetBIOS / **42** NTP | Never needed by a bulb; strip on principle. | 4–30 |
+| **6** | **58** renewal (T1) + **59** rebinding (T2) | Optional; lwIP derives sane defaults from option 51. | 12 |
+| **7** | **28** broadcast address | Derivable from mask; safe to drop. | 6 |
+| **8** | **12** hostname / **81** FQDN | Only if present. | var |
+
+**Target:** get the total option block **under ~64 bytes**, i.e. inside `DHCP_MIN_OPTIONS_LEN`.
+That is the threshold worth aiming at, not an arbitrary "less is better".
+
+## 11.5 Exact OpenWrt config — per-MAC, leaves every other your IoT VLAN device untouched
+
+dnsmasq suppresses an option when it is listed **with no value**. OpenWrt exposes this via a
+`config tag` section, applied per-host by MAC. **Nothing here changes the offer any other client
+receives.**
+
+```sh
+# /etc/config/dhcp  — via UCI
+
+# 1) A tag carrying the strip-list (bare option numbers = SUPPRESS)
+uci -q delete dhcp.sengled
+uci set dhcp.sengled=tag
+uci add_list dhcp.sengled.dhcp_option='121'   # classless static routes
+uci add_list dhcp.sengled.dhcp_option='249'   # MS classless static routes
+uci add_list dhcp.sengled.dhcp_option='119'   # domain search
+uci add_list dhcp.sengled.dhcp_option='15'    # domain name
+uci add_list dhcp.sengled.dhcp_option='252'   # wpad
+uci add_list dhcp.sengled.dhcp_option='42'    # ntp
+uci add_list dhcp.sengled.dhcp_option='44'    # netbios ns
+uci add_list dhcp.sengled.dhcp_option='45'    # netbios dd
+uci add_list dhcp.sengled.dhcp_option='46'    # netbios node type
+uci add_list dhcp.sengled.dhcp_option='47'    # netbios scope
+uci add_list dhcp.sengled.dhcp_option='58'    # T1 renewal
+uci add_list dhcp.sengled.dhcp_option='59'    # T2 rebinding
+uci add_list dhcp.sengled.dhcp_option='28'    # broadcast address
+# keep DNS but to a SINGLE server (replace with the your IoT VLAN gateway):
+uci add_list dhcp.sengled.dhcp_option='6,YOUR_LEASED_IP'
+
+# 2) Bind the tag to just this bulb, with a fixed lease
+uci -q delete dhcp.sengled_bulb1
+uci set dhcp.sengled_bulb1=host
+uci set dhcp.sengled_bulb1.name='sengled-bulb1'
+uci add_list dhcp.sengled_bulb1.mac='XX:XX:XX:XX:XX:XX'
+uci set dhcp.sengled_bulb1.ip='YOUR_LEASED_IP'
+uci set dhcp.sengled_bulb1.tag='sengled'
+
+uci commit dhcp
+/etc/init.d/dnsmasq restart
+```
+
+**Then re-capture.** Compare the new OFFER's total option-block length and the offset of
+option 54 against the baseline.
+
+### If §11.2 says the broadcast flag is the problem
+
+`dhcp-broadcast` is tag-aware but has no UCI mapping, so add it as a raw dnsmasq directive
+(keeps the change scoped to the tag, not the whole VLAN):
+
+```sh
+mkdir -p /etc/dnsmasq.d
+echo 'dhcp-broadcast=tag:sengled' > /etc/dnsmasq.d/sengled.conf
+uci set dhcp.@dnsmasq[0].confdir='/etc/dnsmasq.d'
+uci commit dhcp && /etc/init.d/dnsmasq restart
+```
+This forces **broadcast** replies **only** to tagged MACs. Cheap, reversible, and it is the
+single highest-yield experiment if the DISCOVER carries `flags=0x8000`.
+
+## 11.6 Suggested experiment order (cheapest discriminator first)
+
+1. **Read the capture** — bulb's option-55 PRL, `bootp.flags` in DISCOVER, OFFER unicast vs
+   broadcast, total option-block size, byte-offset of option 54. *(No config change.)*
+2. **If `flags=0x8000` + unicast OFFER** → apply `dhcp-broadcast=tag:sengled` alone. Retest.
+3. **Else** apply the §11.5 strip-tag. Retest. Note the new option-54 offset.
+4. **Still failing?** Bisect: strip to the bare legal minimum (53, 54, 51, 1, 3 only) — if *that*
+   works, re-add options one at a time to identify the exact poison. If even the minimal offer
+   fails, the problem is **not** option content and the next suspects are §7's association-layer
+   issues (WPA3/mixed-mode, PMF) — note that a client which never truly associated can still
+   appear to "DHCP" if you are capturing at the AP rather than on the wire behind it.
+
+## 11.7 SengledTools issue #60 — same symptom, no DHCP clues, still open
+
+Re-read in full. Reporter: *"Nothing happens after this step 'Waiting for bulb to verify setup
+endpoints…'"* — the laptop leaves the SoftAP and rejoins home Wi-Fi, then the verification hangs
+**exactly** as ours does. **Open, unresolved, no maintainer response, no comments.**
+
+- **No** mention of DHCP, leases, IP, or router/AP configuration. **No bulb model given.**
+- Value: it establishes that **"stalls at verification" is a recurring, unexplained failure
+  mode** — not unique to the W12-N15 and not obviously chip-specific.
+- ⚠️ It does **not** corroborate the DHCP theory; it is a symptom match only. Do not over-read it.
+- If our capture nails the mechanism, **#60 is the place to post it** — it would be the first
+  concrete root-cause on that thread, and would also settle whether that reporter's bulb is the
+  same chip family.
+
+## 11.8 Handoff to the chipid investigation (capture checklist)
+
+Capture on the AP/bridge for your IoT VLAN, filter `port 67 or port 68`, during one join attempt:
+
+- [ ] **DISCOVER**: `bootp.flags` (0x8000?) · option 55 PRL contents · client MAC (confirm it is
+      `XX:XX:XX:XX:XX:XX`, and whether that matches the bulb's printed MAC — see §9)
+- [ ] **OFFER**: unicast or broadcast? · total frame length · **full option list in order** ·
+      **byte offset of option 54** · presence of option 52 (overload)
+- [ ] **Absence check**: confirm no REQUEST at all (vs. a REQUEST that goes unanswered — a very
+      different bug)
+- [ ] Whether the bulb re-DISCOVERs (retry loop) or goes straight back to SoftAP, and after how
+      long
+
+**Status: mechanism identified (lwIP drops OFFER when option 54 isn't registered); awaiting
+capture to choose between broadcast-flag and option-bloat.**
+
+---
+---
+
+# §12 — PRIOR ART for "associates, gets OFFER, never REQUESTs" (the priorart investigation, 2026-08-09)
+
+Real-world reports of this exact symptom class on cheap IoT WiFi devices, **with the fixes that
+actually worked**, ranked. Plus two corrections to §11.5/§11.2 and one negative result that saves
+a dead end. Evidence mirrored to `prior-art/evidence-w12n15/`.
+
+> **Headline: the single best-documented cause of this exact failure signature is not DHCP at all
+> — it is WMM/802.11n.** It explains why association and the 4-way handshake succeed while the
+> *first real data frames* (DHCP) fail, and it explains why removing option 119 changed nothing.
+
+## 12.1 ⭐ RANK 1 — WMM / 802.11n data-frame incompatibility
+
+`esp8266/Arduino` **#8412** + **#8299** are a large, well-documented instance of our signature:
+devices associate, then **"the device ignores the DHCP offer from the router"** — confirmed by
+**router-side packet traces**, not guesswork.
+
+**The fix, independently confirmed by five+ reporters,** was forcing the client out of 802.11n:
+```cpp
+WiFi.setPhyMode(WIFI_PHY_MODE_11G);   // "worked like a charm" · "solved the issue for me"
+```
+**And the root cause, from `1d4rk` who found the workaround (verbatim):**
+
+> *"The problem was due to the older ESP8266 Arduino core, starting from 2.6.0, that **disabled
+> WMM/WME support in 802.11n mode** and it was added in the last release (because it is based on
+> Espressif nonos_SDK 3.0.5). The connection is working good in 802.11n mode + WMM enabled (so no
+> need to force 802.11g mode)."*
+
+**Why this fits us better than any DHCP-content theory:**
+**802.11n requires WMM/QoS.** A client that negotiates HT but mishandles WMM/QoS data frames will
+still complete **management frames** (auth/assoc) and **EAPOL** (the 4-way handshake) — then fail
+on the **first QoS-framed data exchange**, which is DHCP. That is *precisely* our staging:
+
+| Stage | Frame type | Our result |
+|---|---|---|
+| auth / assoc | management | ✅ |
+| WPA2 4-way | EAPOL | ✅ |
+| **DHCP** | **QoS data** | ❌ **fails here** |
+| → 16 s timeout, disconnect | | ❌ |
+
+It also explains the **option-119 removal having no effect**: if the OFFER's *frames* aren't
+getting through, its *contents* are irrelevant. And it's consistent with the AiDot bulb working —
+different silicon, working WMM.
+
+**AP-side test (JP controls this; the bulb's firmware is stock so the client-side fix is unavailable):**
+on the AP serving the IoT SSID, for that BSS only:
+```sh
+# OpenWrt, on the AP (per-BSS, not per-radio where possible)
+uci set wireless.<iface>.wmm='0'      # 11n requires WMM; disabling it drops the BSS to 11g behaviour
+uci commit wireless && wifi reload
+```
+or force the radio to non-HT: `uci set wireless.<radio>.htmode='NONE'`.
+⚠️ Scope it to the **one AP** you're pairing next to, and revert after — disabling WMM costs
+throughput for every client on that BSS.
+
+**Related, cheap, same family:** on ASUS gear, disabling **"Wi-Fi Agile Multiband" (802.11v)** on
+2.4 GHz *"completely dissapeared"* the problem for reporter `movodos`. the chipid investigation verified
+`ieee80211v` unset in UCI on all 9 APs — worth confirming it's also absent from the **runtime**
+hostapd conf, since that's where it would actually bite.
+
+## 12.2 ✅ CORRECTION to §11.5 — `dhcp-broadcast` *does* have a native UCI mapping
+
+§11.5 states *"`dhcp-broadcast` is tag-aware but has no UCI mapping, so add it as a raw dnsmasq
+directive."* **Not so** — OpenWrt has a first-class per-host boolean built for exactly this.
+Verified in the packaged init script (mirrored as `evidence-w12n15/openwrt-dnsmasq.init`):
+
+```sh
+# line 1168 — passed UNCONDITIONALLY on every OpenWrt dnsmasq instance:
+xappend "--dhcp-broadcast=tag:needs-broadcast"
+
+# lines 406-411 — how a host earns that tag:
+config_get_bool broadcast "$cfg" broadcast 0
+[ "$broadcast" = "0" ] && broadcast= || broadcast=",set:needs-broadcast"
+```
+
+**So the whole fix is one UCI line on a host section — no confdir change, no raw file:**
+```sh
+uci set dhcp.sengled="host"
+uci set dhcp.sengled.mac='XX:XX:XX:XX:XX:XX'
+uci set dhcp.sengled.ip='YOUR_LEASED_IP'
+uci set dhcp.sengled.broadcast='1'          # ← sets tag needs-broadcast; dnsmasq broadcasts to it
+uci commit dhcp && /etc/init.d/dnsmasq restart
+```
+Prefer this over `confdir` + `/etc/dnsmasq.d/sengled.conf`: it's scoped to one MAC, survives
+upgrades, is visible in LuCI, and doesn't repoint dnsmasq's include directory on the **main
+firewall**. (The `extraconftext` UCI key, init line 1183, is the sanctioned escape hatch if a raw
+directive is ever genuinely needed — still no need here.)
+
+The fact that OpenWrt ships a dedicated `broadcast` flag per host is itself evidence: **"broken
+DHCP client needs broadcast replies" is a common enough real-world failure to warrant a
+purpose-built option.** §11.2's hypothesis is well-founded; only its plumbing was wrong.
+
+## 12.3 ⛔ NEGATIVE RESULT — the *opposite* fix does not exist, don't hunt for it
+
+There is a documented **mirror-image** failure: devices that **set the broadcast flag** but only
+actually accept **unicast** (Honeywell Lyric thermostats, Sony TVs — dnsmasq-discuss 2019q2). The
+reporter wrote a `--dhcp-unicast` patch and it fixed those devices.
+
+**That option was never merged.** I checked the current dnsmasq man page: **`dhcp-unicast` → 0
+occurrences**; `dhcp-broadcast` → 1. So if the capture shows the bulb *requesting* broadcast
+(`flags=0x8000`) while dnsmasq already broadcasts, **there is no config-level lever left on the
+dnsmasq side** — don't burn time looking for one. Escalate to §12.1 (WMM/11n) or §12.4 instead.
+
+## 12.4 RANK 3 — AP driver / radio specific: just try a different AP
+
+`kaloz/mwlwifi` **#278** — *"ESP8266/Embedded devices unable to connect to 2.4Ghz Radio"* — is our
+signature almost line for line: devices **authenticate, complete the WPA key handshake, then fail
+DHCP and get disconnected after ~30-40 s**. Marvell 88W8864 on OpenWrt.
+
+**The reporter's resolution: the same device worked on a different radio of the same AP** ⇒
+driver/radio-specific, not a general incompatibility.
+
+**This is the cheapest discriminator available and needs zero config change.** JP has **9 APs of
+mixed silicon**. The bulb was last seen on `north-office` (TP-Link OnHub, Qualcomm). **Retry
+provisioning next to an AP with a different chipset** (e.g. an Extreme WS-AP3825i or the
+EAP225-Outdoor) and see whether DHCP completes. If it does, everything above is moot.
+
+## 12.5 RANK 4 — offer size / lwIP options buffer (corroborates §11's strip-list)
+
+Independent support for the "offer too big" branch: lwIP's DHCP options buffer is a **compile-time
+constant** with a floor of **68 bytes** (`DHCP_MIN_OPTIONS_LEN`), and **ESP-IDF added
+`CONFIG_LWIP_DHCP_OPTIONS_LEN` specifically because servers send more options than the default
+buffer holds** (`espressif/esp-idf@9e2f15a`). On stock bulb firmware that constant is **not
+tunable**, so the only lever is making the server's OFFER smaller — exactly §11.4's strip-list.
+
+Since **option 119 alone was not enough**, the remaining fat is options **15 (domain-name)**,
+**28 (broadcast-address)**, **6 (multiple DNS servers)** and **42 (NTP)**. §11's approach of
+stripping to the legal minimum (53, 54, 51, 1, 3) and re-adding one at a time remains correct;
+this just confirms the mechanism is real and documents the 68-byte floor it's fighting.
+
+## 12.6 ⚠️ A tension worth naming before you change anything
+
+Fixes 12.1 and 12.2 pull in **opposite directions on broadcast reliability**:
+- **12.2 forces the OFFER to be broadcast.** Broadcast/multicast frames are sent at the basic rate
+  and are **buffered until the DTIM beacon** — so a client in power-save can *miss* them. Cheap
+  IoT bulbs use aggressive power-save.
+- **12.1 (disable WMM / drop to 11g)** removes the QoS/aggregation layer that most often breaks
+  broadcast delivery to buggy clients in the first place.
+
+They are therefore **complementary, not contradictory — but change ONE variable per attempt**, or
+a success won't tell you which lever worked, and you'll leave a throughput-costing WMM change on
+the AP forever for no reason.
+
+## 12.7 Ranked action list (merging §11.6 with the above)
+
+| # | Action | Cost | Why this rank |
+|---|---|---|---|
+| 0 | **Read the capture** — option-55 PRL, `bootp.flags`, OFFER unicast/broadcast, option-block size | none | §11.6 is right: no config change should precede this |
+| 1 | **Retry next to a different-chipset AP** | none | 12.4; zero-risk, and a whole-hypothesis killer |
+| 2 | **`option broadcast '1'` on a host section for the bulb MAC** | 1 UCI line, per-MAC | 12.2; native, reversible, matches the "OFFER logged, client re-DISCOVERs" signature |
+| 3 | **Disable WMM (or `htmode=NONE`) on the one pairing AP's IoT BSS** | 1 UCI line on 1 AP | 12.1; **best explanation of the stage signature**, ranked below #1/#2 only because it costs throughput while set |
+| 4 | **Strip options to the legal minimum, re-add one at a time** | several UCI edits | §11.4/12.5; option 119 alone already excluded |
+| 5 | Don't chase `dhcp-unicast` | — | 12.3; not in mainline dnsmasq |
+
+## 12.8 Evidence mirrored
+
+| File in `prior-art/evidence-w12n15/` | Contents |
+|---|---|
+| `esp8266-8412-wmm-11g.md` | the WMM/802.11n root cause + `setPhyMode(11G)` fix, with confirmations |
+| `esp8266-8299-ignores-offer.md` | "device ignores the DHCP offer" + router traces; ASUS Agile-Multiband fix |
+| `openwrt-dnsmasq.init` | the packaged init script — proof of `broadcast` → `set:needs-broadcast` (L406-411, L1168) |
+| `issue-60.md`, `issue-62.md`, `pr-63*.{md,diff}` | SengledTools provisioning prior art (§11 above) |
+
+## 12.9 Honest limits of this section
+
+- **No report anywhere names RTL8710BN/Ameba-Z specifically** for this symptom. Every analog above
+  is ESP8266/lwIP or a generic "cheap IoT client." The **shared factor is lwIP + minimal WiFi
+  stack**, which the Ameba SDK also uses — so the analogy is reasonable but it *is* an analogy.
+- **12.1's mechanism is inference from a verified fact.** The WMM-in-11n root cause is quoted
+  verbatim and the 11g fix is confirmed by multiple users; my mapping of it onto
+  *"management ✅ / EAPOL ✅ / QoS-data ❌"* is my reasoning about frame classes, not a quote.
+  The capture (12.7 step 0) can confirm or kill it: look for **QoS data frames** and retries
+  around the OFFER.
+- Nobody in any thread reports a **stock, unflashable** bulb fixed from the AP side alone. Ours
+  cannot take a firmware fix, so the client-side remedies that worked for most reporters
+  (`setPhyMode`, newer core, static IP via code) are **unavailable to us**. That asymmetry is why
+  I rank the AP-side and DHCP-server-side levers above everything else.
+
+---
+
+# PACKET CAPTURE — the DHCP OFFER decoded (Nebula, 2026-08-09 23:2x PDT)
+
+**My option-119 theory was WRONG.** The lead removed option 119; the bulb still fails. I captured
+the live exchange on `br-lan.8` during a real pairing run and decoded it. Below is what is
+actually on the wire, two red herrings I killed, and the one genuine protocol anomaly left.
+
+Method: `tcpdump -i br-lan.8 -s0 -c 60 port 67 or port 68 -w /tmp/bulb-dhcp.pcap` on the router,
+while I drove `sengled_tool.py --setup-wifi` from the workstation over the bulb's SoftAP. the workstation's Wi-Fi
+was borrowed from `roam` and **restored to `roam` afterwards**.
+
+## The bulb's DISCOVER (verbatim)
+```
+XX:XX:XX:XX:XX:XX > XX:XX:XX:XX:XX:XX, length 410
+0.0.0.0.68 > 255.255.255.255.67: BOOTP/DHCP, Request, length 368
+xid 0xe153e4ce, Flags [none] (0x0000)        <<< BROADCAST FLAG *NOT* SET
+DHCP-Message (53): Discover
+MSZ (57): 1500                                <<< accepts up to 1500 bytes
+Parameter-Request (55), length 4:
+    Subnet-Mask (1), Default-Gateway (3), BR (28), Domain-Name-Server (6)
+```
+
+## Gatekeeper's OFFER (verbatim)
+```
+XX:XX:XX:XX:XX:XX > XX:XX:XX:XX:XX:XX, length 342
+YOUR_LEASED_IP.67 > 255.255.255.255.68: BOOTP/DHCP, Reply, length 300
+xid 0xe153e4ce, Flags [Broadcast] (0x8000)   <<< SERVER SET THE FLAG THE CLIENT CLEARED
+Your-IP YOUR_LEASED_IP   Server-IP YOUR_LEASED_IP
+DHCP-Message (53): Offer
+Server-ID   (54): YOUR_LEASED_IP
+Lease-Time  (51): 43200
+RN (58): 21600 · RB (59): 37800
+Subnet-Mask (1): 255.255.255.0
+BR          (28): YOUR_LEASED_IP
+DNS          (6): YOUR_LEASED_IP
+Gateway      (3): YOUR_LEASED_IP
+END + 8 PAD
+```
+**Offer size: 300-byte BOOTP payload, 342 bytes on the wire.** Nowhere near any limit, and the
+client advertised MSZ 1500. It contains **exactly the four options the client asked for**, plus
+the mandatory 53/54/51/58/59. **No option 119, no option 15 domain-name, no option overload.**
+⇒ The lead's option-119 removal did land — it simply wasn't the cause. **Offer size/content is
+fully exonerated.**
+
+## ❌ Red herring 1 — "a second DHCP server at YOUR_LEASED_IP"
+The offer comes from `YOUR_LEASED_IP`, not `YOUR_LEASED_IP`. That is **not** a rogue server:
+```
+br-lan.8:  inet YOUR_LEASED_IP/24                       <- the router's real address
+           inet YOUR_LEASED_IP/24 secondary proto keepalived   <- the VRRP VIP
+           link/ether XX:XX:XX:XX:XX:XX
+```
+Gatekeeper is `.3` on every VLAN and `.1` is the VRRP VIP (same pattern as YOUR_ROUTER_IP / YOUR_LAN_IP).
+Serving from `.3` while handing out `.1` as gateway/DNS is correct and intentional.
+
+## ❌ Red herring 2 — "bad udp cksum" in the capture
+The capture flags `[bad udp cksum 0x1348 -> 0x5d5a!]`. That is a **TX-checksum-offload artifact**,
+not corruption — verified:
+```
+br-lan.8   tx-checksumming: on
+eth0/eth1  tx-checksumming: on
+```
+tcpdump taps before the NIC computes the checksum, so locally-generated packets always look bad
+in a sender-side capture. The frame is correct on the wire. **Not the cause.**
+*(Had offload been off, this would have been damning — worth checking rather than assuming.)*
+
+## 🎯 THE ONE REAL ANOMALY — the server overrides the client's BROADCAST flag
+- Client DISCOVER: **`Flags [none] (0x0000)`** — the bulb explicitly asks for a **unicast** reply.
+- Server OFFER: **`Flags [Broadcast] (0x8000)`**, sent to `255.255.255.255` / `XX:XX:XX:XX:XX:XX`.
+
+RFC 2131 §4.1 says the server should honour the client's BROADCAST flag. Here it is being
+**forcibly overridden for every client on the router**, by a deliberate local customisation:
+
+```
+/etc/dnsmasq.user.d/broadcast.conf
+    # Force broadcast OFFER/ACK for all clients to help WiFi clients
+    # whose APs buffer unicasts during power save
+    dhcp-broadcast              <<< bare, UNCONDITIONAL, applies to every client
+```
+(The uci-generated config has the properly *scoped* form `dhcp-broadcast=tag:needs-broadcast`;
+the user.d file adds an unconditional one on top.)
+
+### Why this is now the leading cause
+1. **It is the only deviation from a textbook exchange left** — everything else in the offer is
+   minimal, correct and exactly what the client requested.
+2. **It is a non-default, hand-added local setting.** These bulbs demonstrably work on ordinary
+   networks; when a device works everywhere else and fails here, the prime suspect is the thing
+   this network does that others don't. This is precisely such a thing.
+3. Minimal DHCP stacks (Realtek Ameba / lwIP class, which is what the RTL8710BN runs) are the
+   ones most likely to be strict about the reply's framing when they cleared the flag.
+
+**Honest caveat:** ~92 other your IoT VLAN devices get the same forced-broadcast treatment and are fine,
+including the AiDot bulb. So this is stack-specific pickiness, not a blanket breakage — which is
+why it is a *hypothesis to test*, not a proven cause. It is, however, the only candidate the
+packets still support, and it is cheap to falsify.
+
+## ✅ PROPOSED TEST — 30 seconds, reversible (NOT applied by me)
+This mutates shared infrastructure affecting every your IoT VLAN client, so I have not run it.
+
+**Test D — disable the forced broadcast and retry:**
+```sh
+ssh root@YOUR_ROUTER_IP 'mv /etc/dnsmasq.user.d/broadcast.conf /tmp/broadcast.conf.bak \
+  && /etc/init.d/dnsmasq restart'
+# retry pairing, then watch:
+ssh root@YOUR_ROUTER_IP 'logread -f | grep -i "b0:ce:18"'
+# revert:  mv /tmp/broadcast.conf.bak /etc/dnsmasq.user.d/ && /etc/init.d/dnsmasq restart
+```
+Other clients simply revert to standard RFC behaviour (unicast unless they ask for broadcast) —
+what every other network does — so risk is low and the window is short.
+
+**Success criterion: `DHCPREQUEST` followed by `DHCPACK`.**
+
+### Permanent fix if Test D works — scoped, keeps power-save help for those who need it
+Don't leave broadcast off globally. Make it opt-in and simply don't tag the Sengleds:
+```
+# /etc/dnsmasq.user.d/broadcast.conf
+dhcp-broadcast=tag:needs-broadcast
+```
+```sh
+# tag only the clients that actually needed forced broadcast
+uci add dhcp host; uci set dhcp.@host[-1].mac='<mac-that-needs-it>'
+uci add_list dhcp.@host[-1].tag='needs-broadcast'
+```
+The Sengleds are never tagged, so they receive a standards-compliant unicast OFFER, and the
+power-save-sensitive devices keep the behaviour the file was written for.
+
+## If Test D fails
+The packets will have exonerated size, contents, options, server identity, checksums **and**
+broadcast framing — i.e. the network will be fully cleared at the DHCP layer, and the remaining
+explanation is a defect in the bulb's own DHCP client (e.g. it needs a specific option it didn't
+request, or its 16 s window closes before its own retry logic completes). At that point the
+pragmatic workaround is a **static DHCP reservation** for each Sengled MAC, plus testing whether
+the bulb will accept an offer at all on a stock/simple network for comparison.
+
+---
+
+# ✅ TEST D RESULT — ROOT CAUSE PROVEN AND FIXED (2026-08-09 23:33 PDT)
+
+## The W12-N15 only accepts a **UNICAST** DHCP OFFER. Forced broadcast was the bug.
+
+Removed `/etc/dnsmasq.user.d/broadcast.conf` (the unconditional `dhcp-broadcast`), restarted
+dnsmasq — verified it came back healthy — and re-paired. Result:
+
+```
+23:33:08 DHCPDISCOVER(br-lan.8) XX:XX:XX:XX:XX:XX
+23:33:08 DHCPOFFER(br-lan.8)   YOUR_LEASED_IP XX:XX:XX:XX:XX:XX
+23:33:08 DHCPREQUEST(br-lan.8) YOUR_LEASED_IP XX:XX:XX:XX:XX:XX      ← FIRST EVER
+23:33:08 DHCPACK(br-lan.8)     YOUR_LEASED_IP XX:XX:XX:XX:XX:XX Sengled_WiFi_Color_W12-N15
+```
+```
+LEASE: 1786386788 XX:XX:XX:XX:XX:XX YOUR_LEASED_IP Sengled_WiFi_Color_W12-N15
+```
+
+### Packet-level proof of mechanism
+| | Before (broken) | After (working) |
+|---|---|---|
+| Client DISCOVER | `Flags [none] (0x0000)` | `Flags [none] (0x0000)` *(unchanged)* |
+| Server OFFER dst | `255.255.255.255` (bcast) | **`YOUR_LEASED_IP` (unicast)** |
+| Server OFFER flags | `Flags [Broadcast] (0x8000)` | **`Flags [none] (0x0000)`** |
+| Client response | *(none — silent drop)* | **DHCPREQUEST → ACK** |
+
+The only variable changed was the reply's framing. **The bulb clears the BROADCAST flag and
+genuinely means it — it silently discards a broadcast OFFER.**
+
+### Stability confirmed (the ~16 s disconnect loop is gone)
+```
+23:33:03 AP-STA-CONNECTED / EAPOL-4WAY-HS-COMPLETED
+23:37:47 still associated — assoc_count=1, NO AP-STA-DISCONNECTED since
+```
+**4m45s+ continuously associated**, lease held. Previously it dropped at ~16 s every time. The
+disconnect loop was a *symptom* of the DHCP failure, not an RF problem — exactly as the packets
+predicted.
+
+### Bulb reached the local provisioning server ✅
+From the HA add-on log:
+```
+[✓] Served GET  on /jbalancer/new/bimqtt
+[✓] Served POST on /life2/device/accessCloud.json
+```
+Both handshake endpoints hit. The bulb is on the network and talking to the local stack.
+
+## 🎁 Bonus: the DHCP hostname settles a documentation error
+The bulb identifies itself as **`Sengled_WiFi_Color_W12-N15`** — independently confirming both
+the model (**W12-N15**, matching the project state notes) **and that it is the COLOR variant**.
+`SengledTools`' compatibility matrix lists *"W12-N15 (WiFi **white** LED)"* — that is **wrong**,
+and worth an upstream PR alongside the module correction.
+
+## ⚠️ Remaining blocker — a DIFFERENT layer, not the network
+```
+HA broker connect failed (rc=5)      (repeating)
+```
+MQTT **CONNACK code 5 = "not authorized"**. This is the **add-on failing to authenticate to
+HA's Mosquitto broker** — an add-on credential problem, entirely separate from the bulb. The
+bulb→add-on HTTP handshake already succeeded. Owner: whoever holds the add-on config
+(the ota investigation); fix the broker username/password.
+
+## 🔧 Recommended permanent fix — surgical, keeps the power-save workaround
+Test D is currently **left in place** (broadcast.conf parked at `/tmp/broadcast.conf.off`,
+backup at `/tmp/broadcast.conf.bak`). Don't leave forced-broadcast globally disabled *or*
+globally enabled — make it opt-in:
+
+```
+# /etc/dnsmasq.user.d/broadcast.conf
+dhcp-broadcast=tag:needs-broadcast
+```
+```sh
+# tag ONLY the power-save-sensitive clients that actually needed it
+uci add dhcp host
+uci set dhcp.@host[-1].mac='<mac-that-needs-broadcast>'
+uci add_list dhcp.@host[-1].tag='needs-broadcast'
+uci commit dhcp && /etc/init.d/dnsmasq restart
+```
+Sengleds stay untagged → standards-compliant unicast OFFER → they work.
+*(Note `dhcp.lan.broadcast='1'` and `dhcp.lan.force='1'` also exist on the `lan` section —
+review those separately; they don't affect your IoT VLAN.)*
+
+**⚠️ Regression watch:** the original file's comment says forced broadcast was added to help
+"WiFi clients whose APs buffer unicasts during power save." Some device on the network needed
+that. Watch for a client that stops getting leases, and tag *that* MAC rather than reverting
+globally.
+
+## Final status of the no-solder Sengled path
+**Unblocked at the network layer.** DHCP works, the bulb holds its association, and it completes
+the local cloud handshake. What remains is the add-on's MQTT auth (rc=5) — a config fix, not a
+hardware or network one. **No UART flashing is required for this.**

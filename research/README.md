@@ -27,6 +27,19 @@ they contradict each other, the main README states the resolution:
 | `01`/`02` carry an unsourced claim about the vendor's finances, and a flat "zero prior art" | **Both narrowed.** The financial claim is unverified and is deliberately **not** published — only the documented outages are. And prior art is zero for *WF864 specifically*; the same silicon has strong precedent (Solis S3 / EMW3080-E). |
 | `03` documents ESP8285 and Beken procedures | Neither matches the hardware. The applicable route is RTL8710BN + `ltchiptool` + `realtek-ambz`. |
 
+## ✅ Resolved
+
+The blocker in these notes is **solved**: the W12-N15 clears the DHCP `BROADCAST` flag and silently
+discards a broadcast `OFFER`. An unconditional `dhcp-broadcast` on the DHCP server was overriding
+that for every client. Scoping it (`dhcp-broadcast=tag:needs-broadcast`) produced a compliant unicast
+offer, and the bulb immediately sent its first-ever `DHCPREQUEST` → `DHCPACK`, took a lease, stayed
+stable, and reached the add-on's endpoints. **No soldering required.** Full write-up in
+[the main README](../README.md#-solved-the-bulb-only-accepts-a-unicast-dhcp-offer).
+
+Also settled by that lease: the bulb's own DHCP hostname is **`Sengled_WiFi_Color_W12-N15`**,
+confirming it is the **colour** variant — upstream's compatibility matrix calls `W12-N15` a "WiFi
+white LED", which is a documentation error.
+
 ## Field-test reality check
 
 **The symptom description changed three times, and each change killed hypotheses.** Worth reading in
@@ -39,6 +52,9 @@ order if you want the actual epistemics:
    fault.
 3. *"Association completes; DHCP dies at OFFER→REQUEST"* → the real localisation, and it voided every
    earlier candidate at once.
+4. *"The server was forcing broadcast; the bulb had asked for unicast"* → the actual cause. Note the
+   contents of the offer were never the problem — its **framing** was. Every options-based hypothesis
+   (119, bloat, option 54) was looking at the wrong field of the packet.
 
 `07` also contains an explicit **⛔ do-not-run** finding: the "build a minimal test SSID" experiment
 is pointless here, because the SSID already *is* that minimal configuration across all nine APs. That

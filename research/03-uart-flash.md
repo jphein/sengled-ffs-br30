@@ -7,28 +7,38 @@
 
 ---
 
-> # 🧪 STILL THE FALLBACK PATH — but it is now ready to execute on demand.
+> # 🟢 PRIMARY-READY. If JP says "flash them", this runs — it is not R&D.
 >
-> **The adopted path remains Path A — `SengledTools` UDP local control.** No soldering, no flashing,
-> no risk. See `the project state notes` and `research/02-ota-path.md`. As of this writing, provisioning is
-> **shaky** (bulb accepts credentials but won't join), which is why this path has been armed.
+> **Status of the no-solder path:** doubtful. Removing DHCP option 119 did **not** fix the join; the
+> bulb receives a DHCP `OFFER` and never sends a `REQUEST`. That is a defect in the stock firmware's
+> DHCP client, not a network misconfiguration. If the packet-capture work doesn't rescue it, this
+> becomes the primary path for all 8 bulbs.
 >
-> **Do not flash until Path A is formally declared dead.** JP has **8 bulbs**; Path A scales to all
-> 8 in an evening. This path is roughly an hour for the *first* bulb, and there is **zero prior art
-> for LibreTiny on the WF864 / MX1290** — nobody has published a success or a failure. You would be
-> first.
+> **Why flashing is expected to actually fix it:** ESPHome/LibreTiny replaces the stock DHCP client
+> with **LwIP's**, a completely different implementation. This isn't a workaround — it removes the
+> broken component.
 >
-> **What "armed" means:** `ltchiptool` is installed, a starter ESPHome config exists and compiles,
-> and every command below is copy-pasteable. It does **not** mean the unknowns are resolved.
-> **Read the Risk Register (Section 11) before touching a soldering iron** — the GPIO/driver-IC map
-> is still unknown and is the one thing that can only be settled with hardware in hand.
+> **Verified and ready (no hardware required to get this far):**
+> - ✅ `ltchiptool v4.14.4` installed; `realtek-ambz` supported; both board profiles present
+> - ✅ **Production** ESPHome config builds → `firmware.uf2`, validated by `ltchiptool flash file`
+> - ✅ **Prober** config builds → `firmware.uf2`, validated
+> - ✅ Batch build flow (`esphome -s device_name … compile`) verified
+> - ✅ Every command below is copy-pasteable
+>
+> **The one open unknown is hardware-only:** which GPIO drives which LED colour, and whether the
+> bulb uses direct PWM or a constant-current driver IC. **Bulb #1's teardown settles both** — see
+> **[Section B](#section-b--flash-all-8)**, which is built around exactly that.
+>
+> **Read: [Section 0](#section-0--mains-safety-read-this-first) (safety) → [Section B](#section-b--flash-all-8) (the batch runbook).**
+> Section A is the single-bulb reference; Sections 1–12 are the evidence behind it.
 
 ---
 
 ## Table of contents
 
-- **[SECTION A — READY TO RUN (the one-bulb procedure)](#section-a--ready-to-run)** ← start here
-- [Section 0 — Mains safety (read first)](#section-0--mains-safety-read-this-first)
+- [Section 0 — Mains safety](#section-0--mains-safety-read-this-first) ← **read first, every time**
+- **[SECTION B — FLASH ALL 8 (the batch runbook)](#section-b--flash-all-8)** ← **start here for the fleet**
+- [Section A — Ready to run (single-bulb reference)](#section-a--ready-to-run)
 - [Section 1 — Chips ruled out: ESP8285 and BK7231 are NOT applicable](#section-1--ruled-out)
 - [Section 2 — What makes RTL8710BN different](#section-2--what-makes-rtl8710bn-different)
 - [Section 3 — Hardware you need (the adapter matters!)](#section-3--hardware-requirements)
@@ -100,10 +110,13 @@ unless something deviates.
 | ✅ | `realtek-ambz` family supported | confirmed via `ltchiptool list families` → *RTL8710B / 0x22E0D6FC / Supported: Yes* |
 | ✅ | Board profile available | `generic-rtl8710bn-2mb-468k` (and `-788k`) in `ltchiptool list boards` |
 | ✅ | `esphome` 2026.7.4 with `rtl87xx` | installed |
-| ✅ | Starter firmware config staged | `ha-integration/esphome/sengled-br30-rtl8710bn.yaml` |
-| ✅ | **Firmware actually builds** | `esphome compile` → **SUCCESS**, `firmware.uf2` produced (922 112 B) |
+| ✅ | **Production** config staged | `ha-integration/esphome/sengled-br30-rtl8710bn.yaml` — RGBCW on PWM1–5 |
+| ✅ | **Prober** config staged | `ha-integration/esphome/sengled-br30-rtl8710bn-prober.yaml` — 9-pin discovery |
+| ✅ | **Both actually build** | production **96.7 %** flash / 13.5 % RAM · prober **96.1 %** / 14.2 % — both **SUCCESS** |
 | ✅ | **UF2 validated by ltchiptool** | `ltchiptool flash file` → `UF2 - esphome 2026.7.4 (Type.VALID_UF2)` |
-| ⚠️ | Flash headroom | **96.1 % full** (460 716 / 479 232 B) — only 18 516 B spare, see 11.5 |
+| ✅ | **Batch build flow** | `esphome -s device_name sengled-br30-02 …` → name/AP substitute correctly |
+| ⚠️ | Flash headroom | **15 620 B spare** on the production build — see 11.5 before adding components |
+| ❌ | **LED channel GPIO map** | **UNKNOWN — settled by bulb #1, see Section B.3** |
 | ✅ | `dialout` group membership | JP is a member |
 | ✅ | USB-serial kernel drivers | `ftdi_sio`, `cp210x`, `ch341`, `pl2303` all present |
 | ⚠️ | **USB-UART adapter capable of 1.5 Mbaud** | **VERIFY BEFORE STARTING — see A.1** |
@@ -429,6 +442,211 @@ the bootloader, RF calibration, and the original Sengled app.
 2. **Disconnect the serial adapter completely — data AND power.**
 3. Reassemble the bulb.
 4. *Only then* apply mains.
+
+---
+
+# SECTION B — FLASH ALL 8
+
+**The batch runbook.** Section A is the reference procedure for *one* bulb; this section is how you
+run it across the fleet without re-deriving anything.
+
+## B.0 — Reality check, stated up front
+
+| | |
+|---|---|
+| **Bulbs** | 8 |
+| **Teardowns required** | **8.** Every bulb must be opened. |
+| **UART attachments required** | **8.** The stock firmware is **not OTA-flashable** (see `02-ota-path.md`) — there is no wireless shortcut for bulbs 2–8. |
+| **Reflashes after the first flash** | **0 over UART.** Once ESPHome is on a bulb, all later updates are OTA. |
+| **Realistic time** | Bulb #1: **1.5–2 h** (includes pin discovery). Bulbs 2–8: **~20 min each** once the map is known. Total ≈ **4–5 hours**, comfortably splittable across sessions. |
+
+> ### 🔧 Do not solder 8 times — build a jig.
+> The pads are identical on all 8 boards. A **spring-loaded pogo-pin clip** or a strip of pogo pins
+> in a 3D-printed/perfboard holder turns each bulb into a 30-second press-and-hold instead of a
+> solder-and-desolder cycle. For a fleet this is the single biggest time and risk saver — every
+> soldering pass is another chance to lift a pad.
+>
+> If you do solder: **30 AWG silicone wire, hot-glue strain relief, leads < 15 cm.**
+
+## B.1 — Phase 1: bulb #1 is the pathfinder
+
+**Everything unknown gets settled here. Do not open bulb #2 until Phase 1 is complete.**
+
+```
+┌─ PHASE 1 — BULB #1 ────────────────────────────────────────────────────────┐
+│  1. Teardown. Photograph the board BEFORE removing anything.               │
+│  2. ⚠️ Look for a constant-current LED driver IC while it's open:          │
+│        BP5758D · SM2135 · SM2235 · SM16716 · BP1658CJ                      │
+│     Present ⇒ the PWM hypothesis is void; see B.5.                         │
+│  3. Meter the BOOT pad (A.2) — PA30 breakout or CEN? Note which.           │
+│  4. Wire up, enter download mode, confirm the 1 Hz heartbeat (A.3).        │
+│  5. ltchiptool flash info  → record Chip Type, MAC, OTA2 Address (A.4).    │
+│  6. 🚦 RSIP GO/NO-GO CHECK (A.5). All FF ⇒ proceed. Else STOP.             │
+│  7. Full-flash backup ×2 + cmp (A.6).                                      │
+│  8. Flash the PROBER config.                                               │
+│  9. Discover the colour↔pin mapping (B.3).                                 │
+│ 10. Write the mapping into the production YAML's 5 substitutions.          │
+│ 11. Re-flash bulb #1 with the production config — OTA, no wires needed.    │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Only after step 11 works do you touch bulb #2.**
+
+## B.2 — Per-bulb checklist (bulbs 2–8)
+
+Mechanical repeat. Each bulb keeps its **own** backup — the RF calibration and MAC are per-device
+and not interchangeable.
+
+```bash
+BULB=02          # 02 … 08
+NAME="sengled-br30-${BULB}"
+mkdir -p ~/sengled-backups/${NAME} && cd $_
+```
+
+- [ ] **1.** Bulb **unplugged**; bulk cap verified **< 5 V** *(Section 0 — every single time)*
+- [ ] **2.** Attach the jig / wires: `GND` first, then `3V3`, `TX→RX`, `RX→TX`
+- [ ] **3.** Enter download mode; confirm the once-per-second heartbeat
+      ```bash
+      python3 -m serial.tools.miniterm /dev/ttyUSB0 115200   # Ctrl-] to quit
+      ```
+- [ ] **4.** Probe — sanity only, one line:
+      ```bash
+      ltchiptool flash info realtek-ambz -d /dev/ttyUSB0
+      ```
+      ✅ `Chip Type RTL8710BN` · MAC starts `B0:CE:18` · **`OTA2 Address 0x080000`**
+      ⚠️ A *different* OTA2 address on some bulbs means a mixed production batch — build that bulb
+      against `generic-rtl8710bn-2mb-788k` instead.
+- [ ] **5.** 🚦 **RSIP go/no-go** *(cheap; do it per bulb — hardware revisions vary within a batch)*
+      ```bash
+      ltchiptool flash read realtek-ambz syscfg.bin -d /dev/ttyUSB0 -s 0x9000 -l 0x1000
+      xxd -l 0x60 syscfg.bin
+      ```
+      ✅ offsets `0x10–0x17` **and** `0x50–0x57` all `FF` ⇒ **not encrypted, proceed**
+      ❌ anything else ⇒ **STOP on this bulb**, keep the dump, move on to the next
+- [ ] **6.** **Backup ×2 and compare** *(re-enter download mode before each read)*
+      ```bash
+      ltchiptool flash read realtek-ambz ${NAME}-stock.bin  -d /dev/ttyUSB0
+      ltchiptool flash read realtek-ambz ${NAME}-verify.bin -d /dev/ttyUSB0
+      stat -c%s ${NAME}-stock.bin          # MUST be 2097152
+      cmp ${NAME}-stock.bin ${NAME}-verify.bin \
+        && echo "✅ BACKUP GOOD" || echo "❌ MISMATCH — DO NOT FLASH THIS BULB"
+      sha256sum ${NAME}-*.bin | tee ${NAME}.sha256
+      ```
+- [ ] **7.** Build this bulb's firmware *(one YAML, unique name via `-s`)*
+      ```bash
+      cd <your-workspace>/ha-integration/esphome
+      esphome -s device_name "sengled-br30-${BULB}" \
+              -s friendly_name "Sengled BR30 ${BULB}" \
+              compile sengled-br30-rtl8710bn.yaml
+      ```
+- [ ] **8.** Flash *(re-enter download mode first)*
+      ```bash
+      ltchiptool flash write \
+        .esphome/build/sengled-br30-${BULB}/.pioenvs/sengled-br30-${BULB}/firmware.uf2 \
+        -d /dev/ttyUSB0
+      ```
+- [ ] **9.** Remove the strap; **disconnect the adapter completely (data AND power)**
+- [ ] **10.** Reassemble → apply mains → confirm it appears in Home Assistant
+- [ ] **11.** Add a DHCP reservation for its MAC
+
+> **Batch hygiene:** finish each bulb end-to-end before starting the next. Eight half-disassembled
+> bulbs with ambiguous backups is a far worse position than four finished ones.
+
+## B.3 — Pin discovery on bulb #1 (the only R&D step)
+
+Flash the prober:
+
+```bash
+cd <your-workspace>/ha-integration/esphome
+esphome compile sengled-br30-rtl8710bn-prober.yaml
+ltchiptool flash write \
+  .esphome/build/sengled-br30-probe/.pioenvs/sengled-br30-probe/firmware.uf2 -d /dev/ttyUSB0
+```
+
+Then, from **HA → Developer Tools → States/Actions**, drive each `probe PA*` light to 100 % one at a
+time and record what lights up.
+
+**Test in this order** — the four safe hardware-PWM pins first:
+
+| Order | Pin | Channel | Observed colour |
+|---|---|---|---|
+| 1 | **PA15** | PWM1 | ______ |
+| 2 | **PA0** | PWM2 | ______ |
+| 3 | **PA12** | PWM3 | ______ |
+| 4 | **PA22** | PWM5 | ______ |
+| 5 | PA5 · PA14 · PA18 · PA19 · PA23 | *(software PWM fallbacks)* | ______ |
+| 6 | **PA30** | PWM4 | *(needs `logger: baud_rate: 0` — see below)* |
+
+**Interpreting the result:**
+
+- **4 of the first 4 light up** ⇒ hypothesis holds. The 5th channel is **almost certainly PA30**.
+  Uncomment the `pwm_pa30` output/light in the prober, set `logger: baud_rate: 0`, rebuild, re-flash,
+  confirm. *(You lose logs — that's the trade for using PWM4.)*
+- **Only 4 channels exist at all** (nothing on PA30 either) ⇒ it's an **RGBW** bulb, not RGBCW.
+  In the production YAML, delete `pin_warm_white`, switch `platform: rgbww` → **`rgbw`**, and you can
+  **restore logging** (`logger: level: INFO`) since PA30 is then free.
+- **Some channels are on the software-PWM pins instead** ⇒ fine, just record them; `libretiny_pwm`
+  works on any GPIO.
+- **Nothing lights up at all** ⇒ see B.5.
+
+Then write the five pins into the production YAML's substitutions and you are done with R&D:
+
+```yaml
+  pin_red:         PA__
+  pin_green:       PA__
+  pin_blue:        PA__
+  pin_cold_white:  PA__
+  pin_warm_white:  PA__
+```
+
+> ### 🚫 NEVER DRIVE PA6 – PA11
+> They are the **SPI flash bus** (`FCS=6, FD1=7, FD2=8, FD0=9, FSCK=10, FD3=11`, verified from
+> ESPHome's board table). Driving any of them **crashes the chip and can corrupt flash.** They are
+> deliberately absent from the prober. Do not add them.
+
+## B.4 — Naming, addressing, and keys
+
+| | Convention |
+|---|---|
+| Device name | `sengled-br30-01` … `-08` (set per build with `-s device_name`) |
+| Friendly name | `Sengled BR30 01` … `08` |
+| Entity | One `light` per bulb (`name: None` inherits the friendly name — no `Bulb Bulb`) |
+| IP | DHCP **reservation** per MAC. *(Optional: `manual_ip:` per bulb — the production YAML has a commented block. Given that the stock firmware's DHCP client is exactly what failed on this network, static IPs are a defensible belt-and-braces choice.)* |
+| API/OTA keys | **One shared key set across all 8** is fine and much simpler — they're identical devices on a segmented VLAN. Per-device keys mean 8 secrets files for no real gain. |
+| Backups | `backups/sengled-br30-NN/` — **never share or overwrite between bulbs.** RF calibration and MAC are per-device. |
+
+> **Why flashing is expected to fix the join failure:** the stock firmware's DHCP client is what
+> breaks (OFFER received, REQUEST never sent). ESPHome/LibreTiny uses **LwIP's** DHCP client — an
+> entirely different implementation. This isn't a workaround for a network problem; it replaces the
+> broken component.
+
+## B.5 — If it's a constant-current driver IC, not PWM
+
+If **no** pin lights anything, the LEDs are driven by a dedicated constant-current IC over a 2-wire
+clock+data bus — **BP5758D, SM2135, SM2235, SM16716, BP1658CJ**. This is common in RGBCW bulbs.
+
+**This does not kill the project** — ESPHome supports all of them — but it changes the config shape
+and requires identifying the IC and its two GPIOs. Steps:
+
+1. Read the marking on the driver IC (bulb #1 is already open).
+2. Trace or probe its **clock** and **data** pins back to the module.
+3. Replace the `output:`/`light:` blocks with the matching platform (`bp5758d:`, `sm2235:`, …) — a
+   commented skeleton is at the bottom of the production YAML.
+4. Re-verify on bulb #1, *then* batch.
+
+**Budget an extra hour if this happens.** It is the most likely reason Phase 1 overruns.
+
+## B.6 — Abort criteria
+
+Stop and reassess — don't push through:
+
+| Trigger | Action |
+|---|---|
+| **RSIP masks not all `FF`** on bulb #1 | **Hard stop.** Plaintext firmware won't execute under RSIP. Capture `syscfg.bin`, report, reassess. Do not experiment on the only open bulb. |
+| Two backups of the same bulb differ | Fix power/wiring before flashing **that** bulb. Never flash over an unverified backup. |
+| `ltchiptool flash info` won't link after 3 tries with a known-good adapter | Suspect the adapter's 1.5 Mbaud support (**FT232RL**; PL2303 is documented non-working) before suspecting the bulb. |
+| Bulb #1 flashes but never joins WiFi | You still have the backup — restore stock (A.9) and reassess before opening #2. |
+| A bulb's `OTA2 Address` differs from the others | Mixed production batch. Build that one against the 788k profile. Not fatal, but don't flash the 468k image to it. |
 
 ---
 
@@ -912,7 +1130,7 @@ ota:
   - platform: esphome
     password: !secret ota_password
 wifi:
-  ssid: !secret wifi_ssid          # YOUR_IOT_SSID / IoT your IoT VLAN — NEVER hardcode; see the project state notes
+  ssid: !secret wifi_ssid          # the IoT VLAN SSID — NEVER hardcode; see the project state notes
   password: !secret wifi_password
   ap: {}
 captive_portal:
@@ -994,7 +1212,7 @@ new firmware immediately without a power cycle.
    ```bash
    python3 -m serial.tools.miniterm /dev/ttyUSB0 115200
    ```
-4. Join the fallback AP or watch for it on **your IoT VLAN (`YOUR_IOT_SSID`)**; HA reaches it from `YOUR_HA_IP`.
+4. Join the fallback AP, or watch for the bulb on the IoT VLAN; HA reaches it from its VLAN leg.
 5. **Disconnect the adapter — power and data — before reassembling and applying mains.**
 
 ## 10.2 Restoring stock
@@ -1038,8 +1256,21 @@ ld: region `XIP1' overflowed by 15840 bytes
 ```
 
 `captive_portal` was the main cost (it pulls in `web_server_base` + `DNSServer`). It has been removed
-from the staged YAML, and `logger` dropped to `INFO`. **The trimmed build succeeds at 96.1 % full —
-460 716 of 479 232 bytes, leaving just 18 516 bytes (3.9 %) of headroom.** RAM is fine at 14.2 %.
+from the staged YAML, and `logger` dropped to `INFO`.
+
+**Verified build results (ESPHome 2026.7.4 + LibreTiny 1.13.0):**
+
+| Config | Flash | RAM | Headroom |
+|---|---|---|---|
+| **Production** (`sengled-br30-rtl8710bn.yaml`) | **96.7 %** — 463 612 / 479 232 B | 13.5 % | **15 620 B** |
+| **Prober** (`…-prober.yaml`) | 96.1 % — 460 716 / 479 232 B | 14.2 % | 18 516 B |
+
+> Counter-intuitively the **production** build is slightly larger despite having 5 lights instead
+> of 9: the `rgbww` platform with `color_interlock` pulls in more colour-mixing code than nine
+> `monochromatic` instances. Don't assume "fewer entities" means "smaller".
+
+RAM is a non-issue at ~14 %. Flash is the binding constraint, and both configs clear it — but only
+by ~3 %.
 
 **Consequence:** no web setup form on the fallback AP. WiFi credentials are compiled in, so this only
 bites if they're wrong — and on bulb #1 the UART wires are still attached, making a re-flash trivial.
