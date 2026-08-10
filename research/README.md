@@ -9,7 +9,6 @@ each claim rather than taking the summary on faith.
 | [`01-chip-id.md`](01-chip-id.md) | Module identification | Module is `WF864SM-M6` = MXCHIP MX1290 = **Realtek RTL8710BN**. The `BOOT`-vs-`IO0` pad is the sharpest discriminator; the antenna is the fastest. Includes the verified UART2 procedure. |
 | [`02-ota-path.md`](02-ota-path.md) | Is there a no-solder path? | **Yes, and it's better than flashing.** SengledTools provisions locally; `sengled_udp` drives the bulb from HA over UDP 9080. Also documents the `--force-flash` brick hazard. |
 | [`03-uart-flash.md`](03-uart-flash.md) | Serial flashing procedures | Full mains-safety treatment. The driver is a **non-isolated SMPS**, so board "ground" can sit at line potential. Adapter ON ⇒ mains OFF, always. |
-| [`04-ha-endstate.md`](04-ha-endstate.md) | Firmware choice + HA end state | Written before the module was identified — see the divergence table below. |
 | [`05-ha-features.md`](05-ha-features.md) | Feature → HA entity matrix | The full UDP capability surface, what's MQTT-only, the protocol caveats that shape the design, and a smoke-test plan. |
 
 ## Where the notes and the writeup diverge
@@ -19,7 +18,7 @@ they contradict each other, the main README states the resolution:
 
 | Conflict | Resolution in the writeup |
 |---|---|
-| `04` assumes ESP8266/Beken and builds ESPHome configs around it | Superseded. The module is RTL8710BN — those configs apply to *other* Sengled models, not this bulb. |
+| A fourth note (`04-ha-endstate.md`) built ESPHome configs on an ESP8266/Beken assumption | **Withdrawn from this repo.** It predates the module identification and its conclusions don't apply to RTL8710BN hardware. `05-ha-features.md` is the current, correct source for the Home Assistant surface. |
 | `01` first said **no LibreTiny port exists** for MX1290, then corrected itself | The correction is right: MX1290 **is** an RTL8710BN rebadge, so ESPHome `rtl87xx:` and OpenBeken both support it. Wired flashing is a real target. |
 | `01` reads "FFS" as Amazon Frustration-Free Setup; `02` traces it to SKU `W12-N15WFFS2P` | Both. It's Amazon's feature name, which Sengled encoded into its own SKU. Not a brand either way. |
 | `01` rated the WF863/WF864 split near 50/50 | Closed by physical evidence: `2AGN8-WF864`. |

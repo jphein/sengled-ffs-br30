@@ -12,15 +12,15 @@ listing title = Amazon **Frustration-Free Setup**, not a brand.
 > **Publication safety:** this file carries no homelab identifiers — no real SSIDs,
 > no private-range addresses from the lab, no internal hostnames, no MACs — and is
 > safe to source the public repo's "Features you get in HA" section from. The one
-> example entity_id uses a deliberately fictional address. Note that
-> `research/04-ha-endstate.md` is **not** clean (see its header banner) — do not
-> copy from that one.
+> example entity_id uses a deliberately fictional address. **This file is the
+> authoritative source for the Home Assistant surface** — an earlier sibling note on
+> the same topic was withdrawn from this repo as superseded; do not look for it.
 
-> **One correction to the project state notes.** Line 21 describes this work as adding
+> **One correction to the original brief.** It described this work as adding
 > "per-channel PWM, diagnostics, reboot/reset buttons, **effects, groups**".
 > Effects and group commands are **MQTT-only and absent from the UDP surface** —
-> see §0/C1 below. They are deliberately not implemented, and the project state notes's feature
-> list should be amended so the public repo does not promise them.
+> see §0/C1 below. They are deliberately not implemented, and **the public writeup must
+> not promise them.**
 
 ---
 

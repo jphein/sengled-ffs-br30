@@ -518,6 +518,22 @@ fall back to the `CEN`+`TX2` dance, which is the authoritative method.
 
 **Dump the stock flash first** (`ltchiptool` read). There is no vendor image to re-download.
 
+> ### 🔒 Your flash dump contains your secrets. Never post it.
+> This one catches people, because the natural thing to do when a flash fails is to upload the dump
+> to a forum thread or a GitHub issue and ask for help. **Don't.**
+>
+> On RTL8710BN the dump includes these partitions:
+>
+> | Partition | Offset | Contains |
+> |---|---|---|
+> | `kvs` | `0x0F5000` | Key-value store — **your WiFi SSID and password**, and very likely the bulb's per-device Sengled token |
+> | `userdata` | `0x0FD000` | Vendor data — same risk |
+>
+> A dump is a **credential file with a `.bin` extension.** If you need to share a region for
+> debugging, share only the region you're actually asking about, and redact anything from those two
+> partitions. `.gitignore` in this repo already excludes `*.bin` and `*_backup*` for exactly this
+> reason — but treat that as a backstop, not a plan.
+
 ### Remaining unknowns
 
 🚧 MX1290 is reported to sometimes ship with **flash encryption and log-UART disabled**. If flash
@@ -664,7 +680,6 @@ Raw working notes with sourcing and confidence levels are in [`research/`](resea
 | [`01-chip-id.md`](research/01-chip-id.md) | Module ID, FCC exhibits, the RTL8710BN discovery, verified UART procedure |
 | [`02-ota-path.md`](research/02-ota-path.md) | The no-solder verdict, SengledTools capability matrix, `--force-flash` hazard |
 | [`03-uart-flash.md`](research/03-uart-flash.md) | Serial flashing procedures + full mains-safety treatment |
-| [`04-ha-endstate.md`](research/04-ha-endstate.md) | Firmware choice per chip, ESPHome configs, HA end state |
 | [`05-ha-features.md`](research/05-ha-features.md) | Full feature → HA entity matrix, protocol caveats, smoke-test plan |
 
 ### Tools

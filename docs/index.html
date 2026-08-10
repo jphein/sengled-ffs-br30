@@ -1328,6 +1328,30 @@ light:
       <p><strong>Dump the stock flash first</strong> (<code>ltchiptool</code> read). There is no
         vendor image to re-download.</p>
 
+      <div class="danger">
+        <div class="co-hd">🔒 Your flash dump contains your secrets — never post it</div>
+        <p>
+          This one catches people, because the natural thing to do when a flash fails is to upload
+          the dump to a forum thread or a GitHub issue and ask for help. <strong>Don&rsquo;t.</strong>
+        </p>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>Partition</th><th>Offset</th><th>Contains</th></tr></thead>
+            <tbody>
+              <tr><td><code>kvs</code></td><td><code>0x0F5000</code></td><td>Key-value store — <strong>your WiFi SSID and password</strong>, and very likely the bulb&rsquo;s per-device Sengled token</td></tr>
+              <tr><td><code>userdata</code></td><td><code>0x0FD000</code></td><td>Vendor data — same risk</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          A dump is a <strong>credential file with a <code>.bin</code> extension.</strong> If you
+          need to share a region for debugging, share only the region you&rsquo;re actually asking
+          about, and redact anything from those two partitions. This repo&rsquo;s
+          <code>.gitignore</code> already excludes <code>*.bin</code> and <code>*_backup*</code> for
+          exactly this reason — but treat that as a backstop, not a plan.
+        </p>
+      </div>
+
       <h3>Remaining unknowns</h3>
       <p>
         🚧 MX1290 is reported to sometimes ship with <strong>flash encryption and log-UART
@@ -1568,7 +1592,6 @@ light:
             <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/01-chip-id.md"><code>01-chip-id.md</code></a></td><td>Module ID, FCC exhibits, the RTL8710BN discovery, verified UART procedure</td></tr>
             <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/02-ota-path.md"><code>02-ota-path.md</code></a></td><td>The no-solder verdict, SengledTools capability matrix, <code>--force-flash</code> hazard</td></tr>
             <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/03-uart-flash.md"><code>03-uart-flash.md</code></a></td><td>Serial flashing procedures + full mains-safety treatment</td></tr>
-            <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/04-ha-endstate.md"><code>04-ha-endstate.md</code></a></td><td>Firmware choice per chip, ESPHome configs, HA end state</td></tr>
             <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/05-ha-features.md"><code>05-ha-features.md</code></a></td><td>Full feature → HA entity matrix, protocol caveats, smoke-test plan</td></tr>
           </tbody>
         </table>

@@ -46,6 +46,20 @@ md5sum firmware/sengled-w12n15-stock.bin   # record this somewhere off-device
 Store backups **outside the repo** — an external drive or your password manager's file attachments.
 Do not rely on `.gitignore` alone as your safety net.
 
+## 🔒 Treat a flash dump as a credential file
+
+A dump is not an opaque blob — on RTL8710BN it contains:
+
+| Partition | Offset | Contains |
+|---|---|---|
+| `kvs` | `0x0F5000` | Key-value store — **your WiFi SSID and password**, and very likely the bulb's per-device Sengled token |
+| `userdata` | `0x0FD000` | Vendor data — same risk |
+
+**So: never post a dump to a forum, an issue tracker, or a paste site**, which is exactly what people
+do when a flash fails and they want help. If you must share a region for debugging, share only that
+region and redact anything from the two partitions above. A per-device token identifies *your*
+device; a WiFi password identifies your network.
+
 ## Secrets template
 
 Create `firmware/secrets.yaml` locally (git-ignored) from this shape:
