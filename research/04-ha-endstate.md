@@ -1,10 +1,16 @@
 # Firmware + Home Assistant End-State — Sengled/FFS BR30 RGBCW (ASIN B097CYHRZJ)
 
-**Status:** COMPLETE (2026-08-09 21:05→21:20 PDT)
-**Sourcing:** FCC exhibit records, upstream project docs, community tooling matrices, and observation of a real bulb.
+**Status:** COMPLETE (2026-08-09 21:05→21:20 PDT) — **SUPERSEDED for the chosen path.**
+Path A (UDP, no flashing) was selected; this doc is retained as the flashing-fallback analysis.
+**Researcher:** Nebula
+
+> ⚠️ **INTERNAL ONLY — NOT PUBLICATION-SAFE.** Contains a homelab hostname
+> (`esphome.local`, lines ~10 and ~356). Per the project security rules, scrub to
+> `your-esphome-host` before any of this text reaches the public repo.
+> (`research/05-ha-features.md` and the component README are already clean.)
 **Scope:** which firmware per chip type, ready-to-adapt ESPHome yaml, what HA sees, replicate-across-8.
 
-## Reference environment
+## Owner's environment (given)
 
 - Home Assistant OS, Mosquitto MQTT broker already configured
 - ESPHome tooling present: local `esphome` CLI compile + dashboard at `esphome.local`

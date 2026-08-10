@@ -1,7 +1,7 @@
 # OTA (No-Solder) Reflash Path — "FFS / Sengled" BR30 RGBCW WiFi Bulb (ASIN B097CYHRZJ)
 
 **Status:** IN PROGRESS (started 2026-08-09)
-**Sourcing:** FCC exhibit records, upstream project docs, community tooling matrices, and observation of a real bulb.
+**Researcher:** Nebula
 **Question:** Can these 8 bulbs be flashed with open firmware over-the-air, without soldering UART?
 
 ## VERDICT — FINAL / CONFIRMED / ADOPTED
@@ -10,7 +10,7 @@
 > directly off photos: **`WF864SM-M6`, FCC ID `2AGN8-WF864`, IC `20888-WF864`**, board
 > `LLPC35560_V1` (2020-12-02) = **MXCHIP MX1290 = Realtek RTL8710BN**. Bulb is Sengled
 > **W12-N15**. Genuine-Sengled corroborated twice more: SoftAP name `Sengled_Wi-Fi Bulb_XXXX`
-> and MAC OUI **`B0:CE:18`** (Zhejiang Shenghui Lighting = Sengled). Vendor OUI, from the IEEE registry.
+> and MAC OUI **`B0:CE:18`** (Zhejiang Shenghui Lighting = Sengled). See the project state notes.
 
 **Three-line answer:**
 
@@ -29,7 +29,7 @@
 
 **Verified CLI (read from `sengled_tool.py` argparse, not docs):** `--setup-wifi` (interactive),
 `--ssid` / `--password` (non-interactive), `--ip` (UDP control), `--mac` (MQTT control),
-`--diagnose`. All present as documented.
+`--diagnose`. All present as the project state notes describes.
 
 ---
 
@@ -172,7 +172,9 @@ exploits target Tuya's SDK specifically; they have nothing to attack here.
   and Google. Outages recurred through July 2025.
 - Aug 1 2025: **Amazon permanently discontinued the Sengled Alexa skill**, citing "repeated
   extended service interruptions."
-- Sengled reportedly in financial crisis — staff unpaid since Jan 2025, strikes by Apr 2025.
+- ⚠️ Early drafts also carried an unsourced assertion about the vendor's financial position.
+  **No source supports it; it is deliberately excluded from the public writeup.** Only the
+  documented outages and Amazon's own stated reason for discontinuing the skill are published.
 
 This is why the vendor app is unusable — it is not a user problem, the backend is gone.
 
@@ -289,7 +291,8 @@ drivers (ath9k/ath9k_htc, mt76, rt2800usb, brcmfmac) are the safe class; out-of-
 - FCC IDs `2AGN8-WF864` / IC 20888-WF864 (MX1290, ARM M4F) and `2AGN8-WF862`, from Sengled's
   own module manuals.
 - Best Buy SKU `W12-N15WFFS2P` = "Sengled Smart BR30 LED Bulbs Wi Fi ... (2 Pack) Multicolor".
-- Sengled cloud outage June 2025; Alexa skill discontinued 2025-08-01; unpaid staff/strikes.
+- Sengled cloud outage June 2025; Alexa skill discontinued 2025-08-01 (Amazon citing "repeated
+  extended service interruptions").
 - Sengled W31-N15 Tasmota template lists flashing method **"USB to Serial"** with programming
   pins hidden behind capacitors — i.e. even the ESP8266 model has no *vendor* OTA path; the
   OTA path is SengledTools' own shim.
@@ -338,12 +341,12 @@ drivers (ath9k/ath9k_htc, mt76, rt2800usb, brcmfmac) are the safe class; out-of-
 
 # ROUND 2 — SoftAP scan confirmed, source code read directly
 
-Owner's live scan: the powered bulb broadcasts an **open** AP named
+Team lead's live scan: the powered bulb broadcasts an **open** AP named
 **`Sengled_Wi-Fi Bulb_XXXX`**. That is a **verbatim match** for the AP name SengledTools
 documents (`Sengled_Wi‑Fi Bulb_XXXXXX`) and is nothing like a Tuya SoftAP
 (`SmartLife-XXXX` / `A19-XXXX`). **Genuine Sengled firmware — confirmed independently.**
 
-I stopped reading docs and **cloned the repo to read the source** (a scratch clone).
+I stopped reading docs and **cloned the repo to read the source** (`/tmp/SengledTools`).
 Everything below is read off the actual code, not documentation.
 
 ### R1. Answering (1): is there ANY no-solder OTA route for genuine Sengled? — **Yes, but only for ESP8266 models**
@@ -459,8 +462,8 @@ for the owner's bulbs versus my Round 1 verdict, and it is settled for free by R
 
 # ROUND 3 — sync, close-out
 
-**CONFIRMED** via module photos: `WF864SM-M6` / FCC ID `2AGN8-WF864` / MX1290 /
-RTL8710BN. Path A adopted. Reconciling this file against the project notes:
+Team lead confirmed via **module photos**: `WF864SM-M6` / FCC ID `2AGN8-WF864` / MX1290 /
+RTL8710BN. Path A adopted. Reconciling this file against the project state notes:
 
 - **Round-1 inference chain validated end to end.** `B097CYHRZJ` → "FFS" = SKU fragment of
   `W12-N15WFFS2P` → `W12` = Wi-Fi BR30 → WF864/MX1290. The FCC ID I nominated as the decisive
@@ -470,11 +473,14 @@ RTL8710BN. Path A adopted. Reconciling this file against the project notes:
   No solderless flash path exists for these 8 bulbs.
 - **`probe_bulb.py` is now redundant for chip ID** but remains useful as a **liveness/identity
   check** during pairing — it reads model, MAC and RGB-capability over UDP/9080 without
-  touching Home Assistant. Consistent with the observed "all TCP ports closed, UDP only".
+  touching Home Assistant. Consistent with the project state notes's "all TCP ports closed, UDP only".
 - **Verified for the in-flight pairing:** `--setup-wifi`, `--ssid`, `--password`, `--ip`,
-  `--mac`, `--diagnose` all exist in `sengled_tool.py`'s argparse. The documented command line is
+  `--mac`, `--diagnose` all exist in `sengled_tool.py`'s argparse. the project state notes's command line is
   correct.
-### Carry-forward warnings — both are now in the main writeup
+- Temp clone at `/tmp/SengledTools` removed; canonical copy is
+  `<your-workspace>/prior-art/SengledTools/`.
+
+### Carry-forward warnings for the public repo / advanced section
 
 1. **`--force-flash` must be documented as DO-NOT-USE for WF864**, not merely "advanced".
    The gate is a 2-entry allowlist (`{"W31-N11","W31-N15"}`), and overriding it pushes an
@@ -485,7 +491,7 @@ RTL8710BN. Path A adopted. Reconciling this file against the project notes:
    feature request (`HamzaETTH/SengledTools`), and worth noting in the repo as the thing that
    would unlock solderless open firmware for this whole bulb family. Not something to wait on.
 3. Only the generic `Sengled_Wi-Fi Bulb_XXXX` AP name is safe to publish — no real network SSIDs,
-   no LAN addresses, no device MACs. (The `B0:CE:18` OUI above is a public IEEE vendor
-   registration, not a device address.)
+   no private LAN addresses, no device MACs. (The `B0:CE:18` OUI above is a public IEEE vendor
+   registration, not a device address, and is safe.)
 
 **Status: COMPLETE — verdict final, adopted, wrapped.** 2026-08-09

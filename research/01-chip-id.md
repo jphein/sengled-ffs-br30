@@ -1,7 +1,7 @@
 # Chip ID Research — "FFS / Sengled" BR30 RGBCW WiFi Bulb (ASIN B097CYHRZJ)
 
 **Status:** COMPLETE (2026-08-09 21:15 PDT)
-**Sourcing:** FCC exhibit records, upstream project docs, community tooling matrices, and observation of a real bulb.
+**Researcher:** Nebula
 
 ---
 
@@ -298,7 +298,7 @@ Blakadder has **no** template for a Sengled BR30 color bulb — publishing one w
 
 ---
 
-# ROUND 2 — follow-up from team-lead (live SoftAP confirmed genuine Sengled)
+# ROUND 2 — follow-up after a live SoftAP scan confirmed genuine Sengled
 
 ### Finding 9 — Complete FCC sweep of grantee 2AGN8. There is NO BR30 Wi-Fi filing.
 I pulled the full grant list (53 IDs). The entire **Wi-Fi** portion of Sengled's FCC estate:
@@ -370,3 +370,105 @@ corroborates: *"the tool ID's it as an ESP8266."*
 
 Odds unchanged at **~45% ESP8266EX / ~45% MX1290 / ~10% other** — but the question is now
 cheap to settle empirically, so further desk research has negative expected value.
+
+---
+
+# ROUND 3 — chip CONFIRMED as RTL8710BN. I was wrong; correcting.
+
+**Confirmed the lead's equation. `WF864SM-M6` = MXCHIP **MX1290** = Realtek **RTL8710BN**.**
+LibreTiny's own board list maps **MX1290 → RTL8710BN** and **MX1290V2 → RTL8710BX**. MXCHIP
+builds its modules on Realtek Ameba-Z silicon; MX1290 is a rebadge, not a distinct part.
+Chip question: **CLOSED, ~99%.**
+
+### ❌ CORRECTION TO MY OWN ROUND-1/2 CONCLUSION
+I wrote *"no Tasmota/ESPHome/LibreTiny target exists for MX1290"* and called it a **dead end**.
+**That was wrong.** I treated MX1290 as exotic MXCHIP silicon and never tested it against the
+Realtek rebadge. Because it *is* an RTL8710BN, it is squarely inside LibreTiny's
+**`realtek-ambz`** platform — a mature, well-trodden target.
+
+The accurate statement is narrower: **the SengledTools OTA shim is ESP8266-only**, so *wireless*
+flashing is out. **UART flashing is fully supported.** "Not OTA-flashable" ≠ "not flashable" —
+worth fixing in the project state notes, since the current wording implies the stronger claim.
+
+### Finding 12 — TWO open-firmware targets exist, both already mirrored locally
+1. **ESPHome + LibreTiny** — ✅ *verified against the installed toolchain*:
+   `esphome 2026.7.4` ships `components/rtl87xx/` and declares `FAMILY_RTL8710B`
+   (`components/libretiny/const.py:72`). Config platform is `rtl87xx:`.
+   Board profiles present in the local mirror: **`generic-rtl8710bn-2mb-468k`** and
+   `generic-rtl8710bn-2mb-788k` (2 MB flash — matches WF864).
+2. **OpenBeken** — `prior-art/OpenBK7231T_App/platforms/RTL8710B` + `obk_rtl8710b_build.bat`.
+   A **prebuilt image is already on disk**: `prior-art/tuya-cloudcutter/custom-firmware/
+   OpenRTL8710B_UG_1.18.225.img`. For an RGBCW bulb OpenBeken is arguably the better fit —
+   native LED-channel driver, no YAML compile step.
+
+### Finding 13 — Prior art: NONE for WF864; STRONG for the same chip in an MXCHIP module
+- **Sengled WF864 specifically: zero.** GitHub-wide search for `WF864`, `Sengled+RTL8710`,
+  `Sengled+libretiny`, `Sengled+ltchiptool` returns only one unrelated SSL issue.
+  **the project state notes's "zero prior art on WF864" is correct — verified, not assumed.**
+- **Closest real precedent: the Solis S3 Wi-Fi Stick** (`devices.esphome.io`), which is an
+  **MXCHIP EMW3080-E = RTL8710BN clone**, flashed with **ltchiptool + ESPHome UF2** over a
+  USB-serial adapter on board test points. Same silicon, same MXCHIP module vendor, same tool.
+  That is the pattern to cite in the fallback section.
+- LibreTiny ships **MX1290 / MX1290V2** board definitions outright.
+
+### Finding 14 — The actual UART procedure (verified against the local mirror)
+From `prior-art/libretiny/boards/_base/ic/rtl8710bn.json`:
+- **pin 1 = `PA_30` = UART `2_TX`** · **pin 2 = `PA_29` = UART `2_RX`** · **pin 12 = `CEN`**
+
+> ⚠️ **#1 gotcha: flashing uses UART2 (PA30/PA29), NOT UART0.** If the pads silkscreened
+> `Tx`/`Rx` on the module turn out to be the UART0 *log* port, flashing will never handshake no
+> matter how good the wiring. MXCHIP's own doc says ISP programming is via **UART2
+> (PA_29/PA_30)**, so the broken-out pair is *probably* UART2 — **verify before blaming wiring.**
+
+Download-mode entry (LibreTiny-documented, authoritative):
+1. `CEN` → GND  2. `TX2` → GND  3. release `CEN`  4. release `TX2`
+5. confirm on a serial terminal (garbage/non-letter chars = in download mode)
+
+The module's **`BOOT`** pad is very likely a convenience strap for exactly this — try it first,
+but fall back to the CEN+TX2 dance, which is the documented method.
+
+Other verified specifics:
+- Handshake baud **1.5 Mbaud** → **use an FT232RL. PL2303 is documented as not working.** 3.3 V logic.
+- **It cannot be software-bricked** — the UART loader lives in mask ROM, so even a destroyed
+  bootloader is recoverable. This materially lowers the risk of the fallback path.
+- Most failures are **power-supply voltage drop or loose wiring**, not protocol.
+- **Dump the stock flash first** (`ltchiptool` read) — there is no vendor image to re-download.
+
+### ⚠️ Finding 15 — Two accuracy problems in the sibling docs (flagging, not editing)
+1. **`research/03-uart-flash.md` no longer matches the hardware.** It documents *Procedure A
+   (ESP8285/esptool)* and *Procedure B (Beken BK7231/OpenBeken)*. The chip is **neither** — it
+   needs a **Procedure C: Realtek RTL8710BN / `realtek-ambz` / `ltchiptool` / `rtl87xx`**.
+   As written it would send someone down two wrong paths.
+2. **Its verification claim is partly false.** It states everything was verified against
+   *"locally installed tooling (esptool 5.3.1, **ltchiptool 4.14.4**, bk7231tools, esphome
+   2026.7.4)"*. **`ltchiptool` is NOT installed** — `which ltchiptool` fails, it is absent from
+   `~/.local/bin`, from pipx, and from `.venv-sengled`. Only a **git clone** exists at
+   `prior-art/ltchiptool/`. (`import ltchiptool` *appears* to succeed **only** when the cwd is
+   `prior-art/`, where the clone shadows as a namespace package — a false positive.)
+   **`esphome 2026.7.4` is genuinely installed and I did verify RTL8710B support in it.**
+   → Before any flashing attempt: `pipx install ltchiptool` (or run from the clone).
+
+### 📣 Finding 16 — Two claims in the project state notes I could not verify (they are headed for a PUBLIC repo)
+- **An early draft asserted the cloud had "collapsed" and made an unsourced assertion about the
+  company's financial position.** What I could actually verify: severe multi-day outages
+  (**18–22 Jun 2025**, recurring **31 Jul 2025**), and press noting only *speculation* about
+  patent litigation. **No source supports the financial claim, so it must not be published** —
+  an unsourced assertion of that kind about a named company is a legal-risk sentence, not merely
+  an inaccuracy. Recommended wording, which is what the public writeup uses: *"Sengled's cloud
+  has suffered repeated prolonged outages since mid-2025 and the vendor app is unreliable."*
+- **"FFS = a fragment of the SKU `W12-N15WFFS2P`, NOT a third-party brand"** — the second half
+  is right, the first is incomplete. **FFS = Amazon *Frustration-Free Setup*** (Wi-Fi Simple
+  Setup); Amazon's own listing copy describes linking the bulb to an Amazon account for it.
+  The SKU encodes the feature — it isn't a meaningless fragment.
+
+*(Minor, non-blocking: I read the FCC exhibit silkscreen as `LLPC05560_V1` where the project state notes has
+`LLPC35560_V1`, and `TOUT` where the project state notes has `TON`. the project state notes is from the physical unit, so
+prefer it.)*
+
+## Round-3 bottom line
+Path A (no flashing) remains the right default — **but for the right reason**: because local UDP
+control is easy and non-destructive, **not** because the chip is unflashable. The fallback is
+much stronger than previously documented: mature LibreTiny support, two firmware options, a
+prebuilt OpenBeken image already on disk, a same-silicon precedent, and a chip that cannot be
+software-bricked. The genuine unknowns are only **(a) is the broken-out UART actually UART2**
+and **(b) no one has done this exact module before.**
