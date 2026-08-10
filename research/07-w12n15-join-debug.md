@@ -457,8 +457,9 @@ Linksys WRT1900AC / EA6350v3), each with its own `YOUR_IOT_SSID` BSS on 2.4 GHz,
 | YOUR_LAN_IP | Linksys MR8300 | — | — | — | — | — | — | does **not** broadcast YOUR_IOT_SSID |
 
 **No config drift.** Runtime hostapd for YOUR_IOT_SSID: `wpa=2`, `wpa_pairwise=CCMP`,
-`wpa_key_mgmt=WPA-PSK`, `auth_algs=1`, `okc=0`, **no `ieee80211w`**. By contrast `admin` runs
-`WPA-PSK FT-PSK WPA-PSK-SHA256` + `ieee80211w=1`, and `roam` runs `WPA-PSK FT-PSK`.
+`wpa_key_mgmt=WPA-PSK`, `auth_algs=1`, `okc=0`, **no `ieee80211w`**. By contrast the site's other SSIDs do use those features — one runs
+`WPA-PSK FT-PSK WPA-PSK-SHA256` + `ieee80211w=1`, another `WPA-PSK FT-PSK`. The IoT SSID
+deliberately does not, which is why the association theories never had anything to bite on.
 
 > ### ⛔ DO NOT BUILD THE PROPOSED TEST SSID
 > The brief asked me to recommend a minimal SSID: *WPA2-PSK, no 11r/k/v, `ieee80211w` disabled,
@@ -943,7 +944,7 @@ actually on the wire, two red herrings I killed, and the one genuine protocol an
 
 Method: `tcpdump -i br-lan.8 -s0 -c 60 port 67 or port 68 -w /tmp/bulb-dhcp.pcap` on the router,
 while I drove `sengled_tool.py --setup-wifi` from the workstation over the bulb's SoftAP. the workstation's Wi-Fi
-was borrowed from `roam` and **restored to `roam` afterwards**.
+was temporarily detached from its normal SSID and **restored afterwards**.
 
 ## The bulb's DISCOVER (verbatim)
 ```

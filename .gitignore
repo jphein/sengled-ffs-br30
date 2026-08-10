@@ -30,3 +30,11 @@ venv/
 *~
 .idea/
 .vscode/
+
+# ─── Add-on / tooling local state ─────────────────────────────────────────────
+addon/**/data/
+options.json
+*.crt
+*.csr
+ha-cert.sha256
+.venv-*/

@@ -1,0 +1,90 @@
+---
+name: "Sengled Local Server"
+description: >-
+  Replacement cloud endpoints + MQTT broker for Sengled Wi-Fi bulbs, running on
+  Home Assistant so bulbs on an isolated IoT VLAN can reach it. Wraps the
+  SengledTools server code.
+version: "0.1.3"
+slug: "sengled_local"
+url: "https://github.com/HamzaETTH/SengledTools"
+
+arch:
+  - amd64
+  - aarch64
+  - armv7
+
+init: false
+startup: services
+boot: auto
+
+# NOTE: run.sh does NOT use bashio::config / the Supervisor API any more.
+#
+# It originally did, and this grant existed for it -- but on a real Supervisor
+# that lookup was denied ("Unable to access the API, forbidden") even with this
+# set to true and a full rebuild done, so every option came back empty and the
+# add-on FATAL'd on an advertised_host the user had actually set. run.sh now
+# reads /data/options.json directly with jq, which needs no API access at all.
+#
+# The grant is retained conservatively rather than removed, because nothing in
+# this add-on currently needs it: if you are hardening, this is a safe candidate
+# to drop to `false` and test.
+hassio_api: true
+
+# host_network is deliberately FALSE.
+#
+# With host networking the container would inherit every HA interface, and the
+# broker's TLS bind would race whatever else already owns port 8883 on the host
+# (notably the Mosquitto add-on's TLS listener). Explicit port mappings keep the
+# collision visible at start-up instead of producing a half-working bind.
+#
+# The consequence is that the container cannot discover which of HA's legs faces
+# the bulbs, so `advertised_host` below is REQUIRED, not a convenience.
+host_network: false
+
+# 18883, not 8883. The official Mosquitto add-on binds host ports 1883, 1884,
+# 8883 AND 8884, so both conventional TLS-MQTT ports are already taken on a
+# typical HA box and the container would fail to start. The bulb is TOLD which
+# port to use in the bimqtt reply, so an unconventional port costs nothing.
+ports:
+  57542/tcp: 57542
+  18883/tcp: 18883
+ports_description:
+  57542/tcp: "HTTP: accessCloud.json + bimqtt endpoints the bulbs call"
+  18883/tcp: "MQTT over TLS: bulb connections (8883/8884 are taken by Mosquitto)"
+
+map:
+  - type: share
+    read_only: false
+
+options:
+  advertised_host: ""
+  http_port: 57542
+  mqtt_port: 18883
+  bridge_enabled: true
+  bridge_host: "core-mosquitto"
+  bridge_port: 1883
+  bridge_username: ""
+  bridge_password: ""
+  log_level: "info"
+
+schema:
+  # The IP of the HA interface that FACES THE BULBS. Returned to bulbs in the
+  # /jbalancer/new/bimqtt reply as the MQTT broker address.
+  #
+  # This is NOT persisted by the bulb (an earlier comment here claimed it was --
+  # wrong). The provisioning payload contains only appServerDomain,
+  # jbalancerDomain, timeZone and routerInfo; there is no MQTT endpoint in it, so
+  # the broker address is re-fetched from bimqtt on every bulb boot. Changing
+  # advertised_host or mqtt_port therefore needs a bulb reboot, NOT a re-pair.
+  #
+  # What IS persisted is the HTTP host:port, and that comes from the pairing
+  # wizard's --http-server-ip/--http-port, not from this option.
+  advertised_host: str
+  http_port: port
+  mqtt_port: port
+  bridge_enabled: bool
+  bridge_host: str
+  bridge_port: port
+  bridge_username: str
+  bridge_password: password
+  log_level: list(debug|info|warning|error)

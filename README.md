@@ -44,6 +44,39 @@ thing standing between you and a working bulb.
 
 ---
 
+## What's in this repo
+
+This repo is the complete package: the guide, the server, and the batch tooling. The one thing it
+deliberately does **not** contain is anyone else's code.
+
+| | What | Notes |
+|---|---|---|
+| 📖 | **[This guide](#contents)** | Hardware ID, the DHCP gotcha, all four paths, HA feature matrix |
+| 🧩 | **[`addon/sengled-local/`](addon/sengled-local/)** | Home Assistant add-on — the local replacement cloud (HTTP endpoints + MQTT broker + bridge). Original work. |
+| 🔁 | **[`tools/pair-sengleds.py`](tools/pair-sengleds.py)** | Batch pairing loop — flick one bulb at a time, it provisions each, waits for a real DHCP lease, adds reservations, and registers them in HA. Original work. |
+| 🔎 | **[`tools/probe_bulb.py`](tools/probe_bulb.py)** | Identify a bulb over UDP — model and RGB capability, no teardown, no pairing. Original work. |
+| 📓 | **[`research/`](research/)** | The raw investigation notes, scrubbed |
+
+### Referenced, never vendored
+
+| | Why |
+|---|---|
+| **[`HamzaETTH/SengledTools`](https://github.com/HamzaETTH/SengledTools)** | **Ships no LICENSE file**, so its source carries no granted redistribution permission. The add-on's `Dockerfile` **clones it at a pinned ref at build time on your machine** — nothing of theirs is redistributed here. |
+| **The `sengled_udp` HA integration** | Comes *from* SengledTools. Our enhanced version is a derivative of their bundled component, so it is **not republished here** — [install it from SengledTools](#step-2--install-the-home-assistant-integration) and see [§4](#4-what-you-get-in-home-assistant) for what our enhancements add. Those enhancements are being offered upstream as a PR, which is the right home for them. |
+| Prior-art clones, FCC exhibits | Referenced by URL. See [§9](#9-credits--prior-art). |
+
+### Suggested order
+
+1. **Read [§0](#0-identify-your-module)** — confirm which module you have (2 minutes, no teardown).
+2. **Check [the DHCP gotcha](#-solved-the-bulb-only-accepts-a-unicast-dhcp-offer)** — if your DHCP
+   server forces broadcast offers, fix that *first* or nothing else will work.
+3. **Install the [add-on](addon/sengled-local/)** so the bulbs have a cloud to call.
+4. **Pair** — one bulb by hand with [Path 1](#path-1--solderless-local-control), or the whole batch
+   with [`tools/pair-sengleds.py`](tools/pair-sengleds.py).
+5. **Install `sengled_udp`** from SengledTools for the `light` entities.
+
+---
+
 ## Contents
 
 | | Section | |
@@ -292,6 +325,17 @@ cp -r SengledTools/custom_components/sengled_udp <ha-config>/custom_components/
 Local UDP, no cloud, no broker, no flashing. Each bulb becomes a `light` entity with on/off,
 brightness, RGB color, and color temperature. See
 [§4](#4-what-you-get-in-home-assistant) for the full surface.
+
+> ### Why this integration isn't in this repo
+> It's **SengledTools' component**, and SengledTools ships no LICENSE — so republishing it (or our
+> enhanced fork of it) would be redistributing code we have no permission to redistribute. Install it
+> from upstream.
+>
+> Our enhancements — **22 entities per bulb**, a fixed `available` property so an unplugged bulb
+> stops reporting as online, proper `DeviceInfo` grouping, and a polling coordinator so packet count
+> doesn't scale with entity count — are documented in [§4](#4-what-you-get-in-home-assistant) and are
+> **being offered upstream as a PR.** That's the right home for them: one component, maintained in one
+> place, rather than a fork users have to discover.
 
 ### Practical friction to expect
 
@@ -767,12 +811,17 @@ Both of these cost us a build cycle, and neither is obvious from the error messa
 #### 1. Alpine's `py3-psutil` cannot be upgraded to what `amqtt` needs
 
 `amqtt` requires **psutil ≥ 7**. Installing Alpine's `py3-psutil` via `apk` gets you a
-**distutils-based** build that **pip cannot upgrade over** — the upgrade fails rather than replacing
-it.
+**distutils-packaged** build (5.9.6) that **pip cannot cleanly uninstall to upgrade** — the build
+aborts on `Cannot uninstall 'psutil'`.
 
-> **Fix: drop `py3-psutil` from the `apk add` list entirely** and let pip fetch the `musllinux`
-> wheel. The distro package is not saving you a compile here; it's actively blocking the version you
-> need.
+> **Fix: drop `py3-psutil` from the `apk add` list entirely** and let pip fetch a prebuilt
+> `musllinux` wheel from HA's wheel index. Still no compile. The distro package isn't saving you
+> anything here; it's actively blocking the version you need.
+
+**Note the asymmetry:** `py3-cryptography` *should* stay on the `apk` line. It carries a compiled
+extension, and building it with pip on Alpine drags in rust and gcc. The rule isn't "avoid apk for
+Python packages" — it's "apk the ones with expensive builds, pip the ones with version floors you
+can't satisfy."
 
 #### 2. `bashio::config` gets "forbidden" from the Supervisor API
 
@@ -791,9 +840,30 @@ Reading options via `bashio::config` failed with a **`forbidden`** error from th
 > Fewer moving parts than debugging the API grant, and it works identically in local and store
 > installs.
 
+#### 3. `jq`'s `//` is not a null-coalesce — it swallows `false`
+
+Once you're reading `/data/options.json` with `jq`, the obvious way to default a missing option is
+`.[$k] // ""`. **Don't.** `//` is jq's *alternative* operator and it fires on `false` as well as
+`null`.
+
+That turned `bridge_enabled: false` into `""`, which the Python side read as *"unset, use the
+default"* — i.e. `True`. **Disabling the bridge enabled it**, and the log filled with
+`HA broker connect failed (rc=5)`.
+
+> **Fix: test for presence explicitly**, so a legitimate `false` survives:
+>
+> ```bash
+> get() {
+>   jq -r --arg k "$1" 'if has($k) and .[$k] != null then .[$k] else "" end' /data/options.json
+> }
+> ```
+>
+> This bites anywhere you use `jq` to read config with boolean options — not just Home Assistant
+> add-ons.
+
 *(A prior note predicted apk package names and `bashio` option rendering would "fail loudly at
-build/start, not subtly" — both did exactly that. Loud failures, correctly predicted, and still two
-build cycles.)*
+build/start, not subtly" — both did. The `jq` one did not: it failed silently and inverted a
+setting, which is the failure mode worth fearing.)*
 
 ### ⚖️ On redistribution
 
@@ -1112,8 +1182,16 @@ Raw working notes with sourcing and confidence levels are in [`research/`](resea
 
 ### Tools
 
-[`tools/probe_bulb.py`](tools/probe_bulb.py) — identify a Sengled bulb over UDP. No pairing, no
-flashing, no teardown.
+| Tool | What it does |
+|---|---|
+| [`tools/probe_bulb.py`](tools/probe_bulb.py) | Identify a Sengled bulb over UDP — model and RGB capability. No pairing, no flashing, no teardown. |
+| [`tools/pair-sengleds.py`](tools/pair-sengleds.py) | Batch-pair a whole set of bulbs. Flick one at a time; it provisions each, **judges success by a real DHCP lease rather than the wizard's exit status**, adds DHCP reservations, and registers them in Home Assistant. |
+| [`addon/sengled-local/`](addon/sengled-local/) | The Home Assistant add-on — local replacement cloud. |
+
+**Both tools have a configuration block you must edit** — they ship with placeholders, not our
+network. `pair-sengleds.py` additionally assumes NetworkManager, an OpenWrt router over SSH, and
+Bitwarden/Vaultwarden for secrets; it's a reference implementation, and the parts that touch your
+infrastructure are isolated in single functions for adaptation.
 
 ---
 

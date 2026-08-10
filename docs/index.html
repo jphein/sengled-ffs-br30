@@ -604,6 +604,52 @@ footer .fin{
   </div>
 </div>
 
+<div class="wrap" style="padding-top:clamp(30px,5vw,44px)">
+  <div class="idcard" style="max-width:1180px">
+    <h2 style="margin:0 0 .3em;border:0;padding:0;font-size:1.3rem">What&rsquo;s in the repo</h2>
+    <p style="margin:0 0 1.1em;color:var(--ink-soft);font-size:15px">
+      The guide, the server, and the batch tooling — all original work. The one thing it deliberately
+      does <strong>not</strong> contain is anyone else&rsquo;s code.
+    </p>
+    <div class="links">
+      <a class="lk key" href="https://github.com/jphein/sengled-ffs-br30/tree/main/addon/sengled-local">
+        <span class="repo">🧩 addon/sengled-local/</span>
+        <span class="what">Home Assistant add-on — the local replacement cloud (HTTP endpoints + MQTT
+          broker + bridge). <strong>Builds and runs.</strong></span>
+      </a>
+      <a class="lk key" href="https://github.com/jphein/sengled-ffs-br30/blob/main/tools/pair-sengleds.py">
+        <span class="repo">🔁 tools/pair-sengleds.py</span>
+        <span class="what">Batch pairing loop — flick one bulb at a time; it provisions each,
+          <strong>judges success by a real DHCP lease</strong> rather than the wizard&rsquo;s exit
+          status, adds reservations, and registers them in HA.</span>
+      </a>
+      <a class="lk" href="https://github.com/jphein/sengled-ffs-br30/blob/main/tools/probe_bulb.py">
+        <span class="repo">🔎 tools/probe_bulb.py</span>
+        <span class="what">Identify a bulb over UDP — model and RGB capability. No teardown, no
+          pairing.</span>
+      </a>
+      <a class="lk" href="https://github.com/jphein/sengled-ffs-br30/tree/main/research">
+        <span class="repo">📓 research/</span>
+        <span class="what">The raw investigation notes, scrubbed.</span>
+      </a>
+    </div>
+    <div class="note" style="margin-bottom:0">
+      <div class="co-hd">⚖️ Referenced, never vendored</div>
+      <p>
+        <strong><code>SengledTools</code> ships no LICENSE file</strong>, so its source carries no
+        granted redistribution permission. The add-on&rsquo;s <code>Dockerfile</code> <strong>clones it
+        at a pinned ref at build time on your machine</strong> — nothing of theirs is redistributed.
+      </p>
+      <p>
+        The <code>sengled_udp</code> HA integration comes <em>from</em> SengledTools, so our enhanced
+        version is a derivative and is <strong>not republished</strong>. Install it from upstream; our
+        enhancements (<a href="#ha">§04</a>) are being offered upstream as a PR, which is the right
+        home for them.
+      </p>
+    </div>
+  </div>
+</div>
+
 <div class="wrap cols">
 
   <nav class="toc" aria-label="Contents">
@@ -1677,11 +1723,35 @@ MQTT_PORT=$(jq -r '.mqtt_port // 18883' /data/options.json)</code></pre>
         </p>
       </div>
 
+      <div class="danger">
+        <div class="co-hd">3 — <code>jq</code>&rsquo;s <code>//</code> is not a null-coalesce; it swallows <code>false</code></div>
+        <p>
+          Once you&rsquo;re reading <code>/data/options.json</code> with <code>jq</code>, the obvious way
+          to default a missing option is <code>.[$k] // ""</code>. <strong>Don&rsquo;t.</strong>
+          <code>//</code> is jq&rsquo;s <em>alternative</em> operator and it fires on <code>false</code>
+          as well as <code>null</code>.
+        </p>
+        <p>
+          That turned <code>bridge_enabled: false</code> into <code>""</code>, which the Python side
+          read as <em>&ldquo;unset, use the default&rdquo;</em> — i.e. <code>True</code>.
+          <strong>Disabling the bridge enabled it</strong>, and the log filled with
+          <code>HA broker connect failed (rc=5)</code>.
+        </p>
+        <p><strong>Fix: test for presence explicitly</strong>, so a legitimate <code>false</code> survives:</p>
+        <pre><code>get() {
+  jq -r --arg k "$1" 'if has($k) and .[$k] != null then .[$k] else "" end' /data/options.json
+}</code></pre>
+        <p>
+          This bites anywhere you use <code>jq</code> to read config with boolean options — not just
+          Home Assistant add-ons.
+        </p>
+      </div>
       <div class="note">
         <p>
-          <small>A prior note predicted apk package names and <code>bashio</code> option rendering
-          would &ldquo;fail loudly at build/start, not subtly&rdquo; — both did exactly that. Loud
-          failures, correctly predicted, and still two build cycles.</small>
+          <small>A prior note predicted apk package names and <code>bashio</code> option rendering would
+          &ldquo;fail loudly at build/start, not subtly&rdquo; — both did. The <code>jq</code> one did
+          not: it failed silently and <em>inverted a setting</em>, which is the failure mode worth
+          fearing.</small>
         </p>
       </div>
 

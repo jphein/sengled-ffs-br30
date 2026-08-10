@@ -1,0 +1,11 @@
+---
+build_from:
+  amd64: "ghcr.io/home-assistant/amd64-base:3.19"
+  aarch64: "ghcr.io/home-assistant/aarch64-base:3.19"
+  armv7: "ghcr.io/home-assistant/armv7-base:3.19"
+
+args:
+  # Pin the upstream SengledTools revision so a rebuild is reproducible.
+  # 7d5eadb = 2026-06-04, the revision this add-on was written against.
+  SENGLEDTOOLS_REPO: "https://github.com/HamzaETTH/SengledTools"
+  SENGLEDTOOLS_REF: "7d5eadb3b37292a84726d23e658d483f89e23f1b"
