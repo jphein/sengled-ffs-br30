@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sengled "FFS" BR30 — Local Control &amp; Open Firmware</title>
-<meta name="description" content="Take the Sengled BR30 RGBCW WiFi bulb (Amazon B097CYHRZJ) fully local — no vendor cloud, open firmware, Home Assistant.">
+<title>Sengled "FFS" BR30 — Local Control Without the Cloud</title>
+<meta name="description" content="Take the Sengled BR30 RGBCW WiFi bulb (Amazon B097CYHRZJ) fully local — no cloud, no flashing, no soldering. Home Assistant over UDP.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2a10 10 0 0 0-6 18v3a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-3a10 10 0 0 0-6-18z' fill='gold'/%3E%3Cpath d='M12 27h8v2a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2z' fill='%23888'/%3E%3Cpath d='M16 8v10M12 12l4 3 4-3' stroke='%23a06000' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
 
@@ -27,10 +27,18 @@
   --danger-rule:#e9b8b3;
   --good:#1f6f43;
   --good-wash:#eef7f1;
+  --good-rule:#b9dcc7;
   --code-bg:#f5f1ea;
   --code-ink:#2f2a24;
   --glow:rgba(240,180,60,.45);
   --shadow:0 1px 2px rgba(28,24,18,.05), 0 8px 24px -12px rgba(28,24,18,.14);
+  /* PCB diagram */
+  --pcb:#1d6b46;
+  --pcb-edge:#145034;
+  --shield:#b9bcc0;
+  --shield-hi:#d6d9dc;
+  --gold:#d4a017;
+  --ceramic:#fdfdfb;
   --mono:ui-monospace,"SF Mono",SFMono-Regular,"Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
   --sans:system-ui,-apple-system,"Segoe UI",Inter,Roboto,"Helvetica Neue",sans-serif;
 }
@@ -52,10 +60,17 @@
     --danger-rule:#5c2a24;
     --good:#6fd39b;
     --good-wash:#12241a;
+    --good-rule:#28503a;
     --code-bg:#0f0e0d;
     --code-ink:#ddd6cd;
     --glow:rgba(240,180,60,.22);
     --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+    --pcb:#1a5c3d;
+    --pcb-edge:#0f3f29;
+    --shield:#8b9095;
+    --shield-hi:#a8adb2;
+    --gold:#e0b53a;
+    --ceramic:#f0efe9;
   }
 }
 
@@ -64,7 +79,6 @@ html{-webkit-text-size-adjust:100%}
 body{
   margin:0; background:var(--bg); color:var(--ink);
   font:400 16.5px/1.65 var(--sans);
-  font-feature-settings:"kern" 1;
   -webkit-font-smoothing:antialiased;
   overflow-wrap:break-word;
 }
@@ -73,7 +87,7 @@ body{
 .wrap{max-width:1180px;margin:0 auto;padding:0 clamp(18px,4vw,40px)}
 .cols{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
 @media (min-width:1000px){
-  .cols{grid-template-columns:230px minmax(0,1fr);gap:56px;align-items:start}
+  .cols{grid-template-columns:235px minmax(0,1fr);gap:56px;align-items:start}
 }
 
 /* ═══ HERO ═══ */
@@ -84,7 +98,7 @@ header.hero{
     radial-gradient(70ch 40ch at 78% -30%, var(--glow), transparent 65%),
     var(--bg-sunken);
 }
-.hero-inner{padding:clamp(46px,8vw,84px) 0 clamp(34px,5vw,52px);position:relative;z-index:1}
+.hero-inner{padding:clamp(46px,8vw,80px) 0 clamp(30px,5vw,46px);position:relative;z-index:1}
 .eyebrow{
   display:inline-flex;align-items:center;gap:.55em;
   font:600 11.5px/1 var(--mono); letter-spacing:.13em; text-transform:uppercase;
@@ -92,24 +106,17 @@ header.hero{
   border:1px solid var(--rule); border-radius:999px; padding:7px 13px;
 }
 h1{
-  font-size:clamp(2rem,5.4vw,3.35rem); line-height:1.06; letter-spacing:-.025em;
-  margin:.55em 0 0; font-weight:680; max-width:24ch;
+  font-size:clamp(2rem,5.2vw,3.25rem); line-height:1.06; letter-spacing:-.025em;
+  margin:.55em 0 0; font-weight:680; max-width:26ch;
 }
-h1 .lede-accent{
-  background:linear-gradient(transparent 62%, var(--glow) 62%);
-}
-.sub{
-  margin:1.1em 0 0; max-width:62ch; font-size:clamp(1rem,1.9vw,1.16rem);
-  color:var(--ink-soft);
-}
+h1 .lede-accent{background:linear-gradient(transparent 62%, var(--glow) 62%)}
+.sub{margin:1.05em 0 0;max-width:62ch;font-size:clamp(1rem,1.9vw,1.16rem);color:var(--ink-soft)}
 .asin{
   font:600 .95em/1 var(--mono); color:var(--ink);
   background:var(--bg-raised); border:1px solid var(--rule);
   border-radius:5px; padding:3px 7px; white-space:nowrap;
 }
-.hero-meta{
-  display:flex; flex-wrap:wrap; gap:10px; margin-top:1.9em;
-}
+.hero-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:1.7em}
 .chip{
   display:inline-flex;align-items:center;gap:.5em;
   font:500 13px/1 var(--sans); color:var(--ink-soft);
@@ -117,66 +124,78 @@ h1 .lede-accent{
   border-radius:7px; padding:8px 12px;
 }
 .chip b{color:var(--ink);font-weight:600}
-.cta{display:flex;flex-wrap:wrap;gap:11px;margin-top:2em}
+.cta{display:flex;flex-wrap:wrap;gap:11px;margin-top:1.9em}
 .btn{
   display:inline-flex;align-items:center;gap:.5em;
   font:600 14.5px/1 var(--sans); text-decoration:none;
   padding:12px 18px; border-radius:9px; border:1px solid var(--rule);
   color:var(--ink); background:var(--bg-raised);
-  transition:transform .12s ease, border-color .12s ease, background .12s ease;
+  transition:transform .12s ease, border-color .12s ease;
 }
 .btn:hover{transform:translateY(-1px);border-color:var(--accent)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#1b1200}
 @media (prefers-color-scheme:dark){.btn.primary{color:#161005}}
 .btn.primary:hover{filter:brightness(1.07)}
 
+/* ═══ THE HEADLINE ANSWER ═══ */
+.answer{
+  margin-top:2.2em; padding:20px 22px;
+  background:var(--good-wash); border:1px solid var(--good-rule);
+  border-left:4px solid var(--good); border-radius:12px;
+  max-width:74ch;
+}
+.answer .co-hd{color:var(--good)}
+.answer p{margin:.5em 0;font-size:15.6px}
+.answer p:first-of-type{font-size:17px;font-weight:600;color:var(--ink)}
+
 /* ═══ STATUS BANNER ═══ */
 .status{
-  display:flex;gap:12px;align-items:flex-start;
-  margin:0; padding:14px 0;
-  border-bottom:1px solid var(--rule); background:var(--accent-wash);
-  font-size:14.5px; color:var(--ink-soft);
+  padding:14px 0; border-bottom:1px solid var(--rule);
+  background:var(--accent-wash); font-size:14.5px; color:var(--ink-soft);
 }
-.status .wrap{display:flex;gap:11px;align-items:flex-start;width:100%}
+.status .wrap{display:flex;gap:11px;align-items:flex-start}
 .status b{color:var(--ink)}
 
 /* ═══ SIDEBAR TOC ═══ */
 nav.toc{display:none}
 @media (min-width:1000px){
-  nav.toc{
-    display:block; position:sticky; top:0;
-    padding:52px 0 40px; font-size:14px;
-    max-height:100vh; overflow-y:auto;
-  }
-  nav.toc h2{
-    font:600 10.5px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase;
-    color:var(--ink-faint); margin:0 0 14px; padding:0; border:0;
-  }
+  nav.toc{display:block;position:sticky;top:0;padding:52px 0 40px;font-size:14px;max-height:100vh;overflow-y:auto}
+  nav.toc h2{font:600 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 14px;padding:0;border:0;display:block}
   nav.toc ol{list-style:none;margin:0;padding:0}
-  nav.toc li{margin:0}
   nav.toc a{
-    display:block; padding:6px 0 6px 13px; margin-left:-1px;
+    display:block;padding:6px 0 6px 13px;margin-left:-1px;
     border-left:2px solid var(--rule-soft);
-    color:var(--ink-soft); text-decoration:none; line-height:1.35;
-    transition:color .12s, border-color .12s;
+    color:var(--ink-soft);text-decoration:none;line-height:1.35;
+    transition:color .12s,border-color .12s;
   }
   nav.toc a:hover{color:var(--accent-ink);border-left-color:var(--accent)}
+  nav.toc a.hi{color:var(--ink);font-weight:600;border-left-color:var(--good)}
+  nav.toc a.dim{color:var(--ink-faint)}
   nav.toc .num{font:600 11px/1 var(--mono);color:var(--ink-faint);margin-right:.5em}
+  nav.toc .grp{
+    font:600 10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-faint);margin:18px 0 8px;padding-left:13px;
+  }
 }
 
 /* ═══ ARTICLE ═══ */
 article{padding:clamp(34px,5vw,56px) 0 90px;min-width:0}
 article > section{scroll-margin-top:24px}
 h2{
-  font-size:clamp(1.32rem,2.9vw,1.72rem); line-height:1.2; letter-spacing:-.017em;
-  font-weight:660; margin:2.9em 0 .05em; padding-bottom:.42em;
-  border-bottom:1px solid var(--rule); display:flex; align-items:baseline; gap:.6em;
+  font-size:clamp(1.32rem,2.9vw,1.72rem);line-height:1.2;letter-spacing:-.017em;
+  font-weight:660;margin:3em 0 .05em;padding-bottom:.42em;
+  border-bottom:1px solid var(--rule);display:flex;align-items:baseline;gap:.6em;flex-wrap:wrap;
 }
-h2:first-child,section:first-child h2{margin-top:0}
-h2 .sec-num{
-  font:600 .62em/1 var(--mono); color:var(--accent); letter-spacing:0;
-  flex:none;
+section:first-child h2{margin-top:0}
+h2 .sec-num{font:600 .62em/1 var(--mono);color:var(--accent);letter-spacing:0;flex:none}
+h2 .pill{
+  font:600 10.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;
+  padding:5px 9px;border-radius:5px;margin-left:auto;flex:none;
 }
+h2 .pill.rec{background:var(--good-wash);color:var(--good);border:1px solid var(--good-rule)}
+h2 .pill.adv{background:var(--accent-wash);color:var(--accent-ink);border:1px solid var(--rule)}
+h2 .pill.exp{background:var(--danger-wash);color:var(--danger);border:1px solid var(--danger-rule)}
+h2 .pill.out{background:var(--bg-sunken);color:var(--ink-faint);border:1px solid var(--rule)}
 h3{font-size:1.09rem;font-weight:640;letter-spacing:-.01em;margin:2.1em 0 .5em}
 h4{font-size:.97rem;font-weight:640;margin:1.6em 0 .4em;color:var(--ink-soft)}
 p{margin:.95em 0}
@@ -188,15 +207,16 @@ li{margin:.42em 0}
 li::marker{color:var(--ink-faint)}
 hr{border:0;border-top:1px solid var(--rule);margin:3em 0}
 small{font-size:.86em;color:var(--ink-faint)}
+del{color:var(--ink-faint)}
 
 code{
-  font:.875em/1.5 var(--mono); background:var(--code-bg); color:var(--code-ink);
-  padding:.14em .38em; border-radius:4px; border:1px solid var(--rule-soft);
+  font:.875em/1.5 var(--mono);background:var(--code-bg);color:var(--code-ink);
+  padding:.14em .38em;border-radius:4px;border:1px solid var(--rule-soft);
 }
 pre{
-  margin:1.15em 0; padding:15px 17px; overflow-x:auto;
-  background:var(--code-bg); border:1px solid var(--rule); border-radius:10px;
-  font:13.2px/1.62 var(--mono); color:var(--code-ink);
+  margin:1.15em 0;padding:15px 17px;overflow-x:auto;
+  background:var(--code-bg);border:1px solid var(--rule);border-radius:10px;
+  font:13.2px/1.62 var(--mono);color:var(--code-ink);
   -webkit-overflow-scrolling:touch;
 }
 pre code{background:none;border:0;padding:0;font-size:inherit;color:inherit}
@@ -207,61 +227,66 @@ pre code{background:none;border:0;padding:0;font-size:inherit;color:inherit}
 table{border-collapse:collapse;width:100%;font-size:14.6px;min-width:min(100%,460px)}
 th,td{padding:10px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--rule-soft)}
 thead th{
-  background:var(--bg-sunken); color:var(--ink-soft);
-  font:600 11.5px/1.3 var(--mono); letter-spacing:.055em; text-transform:uppercase;
-  white-space:nowrap; border-bottom:1px solid var(--rule);
+  background:var(--bg-sunken);color:var(--ink-soft);
+  font:600 11.5px/1.3 var(--mono);letter-spacing:.055em;text-transform:uppercase;
+  white-space:nowrap;border-bottom:1px solid var(--rule);
 }
 tbody tr:last-child td{border-bottom:0}
 tbody tr:hover{background:var(--rule-soft)}
+tbody tr.hl{background:var(--accent-wash)}
+tbody tr.hl:hover{background:var(--accent-wash)}
 td code{font-size:.9em}
-.yes{color:var(--good);font-weight:640;white-space:nowrap}
-.no{color:var(--danger);font-weight:640;white-space:nowrap}
-.wip{color:var(--accent-ink);font-weight:600;white-space:nowrap}
+.yes{color:var(--good);font-weight:640}
+.no{color:var(--danger);font-weight:640}
+.wip{color:var(--accent-ink);font-weight:600}
 
 /* ═══ PATH CARDS ═══ */
 .paths{display:grid;gap:14px;margin:1.5em 0;grid-template-columns:1fr}
-@media (min-width:720px){.paths{grid-template-columns:1fr 1fr}}
+@media (min-width:760px){.paths{grid-template-columns:1fr 1fr}}
 .path{
-  position:relative; padding:19px 20px 20px;
-  background:var(--bg-raised); border:1px solid var(--rule); border-radius:13px;
-  box-shadow:var(--shadow);
+  position:relative;padding:19px 20px 20px;
+  background:var(--bg-raised);border:1px solid var(--rule);border-radius:13px;
+  box-shadow:var(--shadow);display:flex;flex-direction:column;
 }
-.path.rec{border-color:var(--accent)}
-.path.dead{opacity:.72}
-.path-hd{display:flex;align-items:center;gap:11px;margin-bottom:.7em}
-.path-letter{
-  flex:none; width:31px;height:31px; border-radius:8px;
+.path.rec{border-color:var(--good);grid-column:1/-1;background:var(--good-wash)}
+.path.exp{border-color:var(--danger-rule)}
+.path.dead{opacity:.7}
+.path-hd{display:flex;align-items:center;gap:11px;margin-bottom:.6em;flex-wrap:wrap}
+.path-n{
+  flex:none;padding:0 9px;height:26px;border-radius:7px;
   display:grid;place-items:center;
-  font:700 15px/1 var(--mono);
-  background:var(--bg-sunken); color:var(--ink-soft); border:1px solid var(--rule);
+  font:700 11px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;
+  background:var(--bg-sunken);color:var(--ink-soft);border:1px solid var(--rule);
 }
-.path.rec .path-letter{background:var(--accent);color:#1b1200;border-color:var(--accent)}
-@media (prefers-color-scheme:dark){.path.rec .path-letter{color:#161005}}
-.path h3{margin:0;font-size:1.03rem;line-height:1.25}
+.path.rec .path-n{background:var(--good);color:var(--good-wash);border-color:var(--good)}
+.path h3{margin:0;font-size:1.05rem;line-height:1.25}
 .path .tag{
-  display:inline-block;margin-left:auto;flex:none;
+  margin-left:auto;flex:none;
   font:600 10.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;
   padding:5px 8px;border-radius:5px;
 }
-.path.rec .tag{background:var(--good-wash);color:var(--good)}
-.path.dead .tag{background:var(--danger-wash);color:var(--danger)}
-.path p{margin:.5em 0 0;font-size:14.6px;color:var(--ink-soft)}
-.path dl{margin:.9em 0 0;font-size:13.6px;display:grid;grid-template-columns:auto 1fr;gap:4px 11px}
-.path dt{color:var(--ink-faint);font:600 11px/1.5 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding-top:2px}
+.path.rec .tag{background:var(--good);color:var(--good-wash)}
+.path.exp .tag{background:var(--danger-wash);color:var(--danger)}
+.path.dead .tag{background:var(--bg-sunken);color:var(--ink-faint)}
+.path p{margin:.4em 0 0;font-size:14.8px;color:var(--ink-soft)}
+.path.rec p{font-size:15.4px}
+.path dl{margin:.95em 0 0;font-size:13.6px;display:grid;grid-template-columns:auto 1fr;gap:5px 11px}
+.path dt{color:var(--ink-faint);font:600 10.5px/1.5 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding-top:2px}
 .path dd{margin:0;color:var(--ink)}
 
 /* ═══ CALLOUTS ═══ */
-.note,.warn,.danger,.ok{
-  margin:1.4em 0; padding:15px 18px; border-radius:11px;
-  border:1px solid var(--rule); border-left-width:3px;
-  background:var(--bg-raised); font-size:15.2px;
+.note,.warn,.danger,.ok,.fix{
+  margin:1.4em 0;padding:15px 18px;border-radius:11px;
+  border:1px solid var(--rule);border-left-width:3px;
+  background:var(--bg-raised);font-size:15.2px;
 }
 .note{border-left-color:var(--ink-faint);background:var(--bg-sunken)}
-.warn{border-left-color:var(--accent);background:var(--accent-wash);border-color:var(--rule)}
-.ok{border-left-color:var(--good);background:var(--good-wash)}
+.warn{border-left-color:var(--accent);background:var(--accent-wash)}
+.ok{border-left-color:var(--good);background:var(--good-wash);border-color:var(--good-rule)}
 .danger{border-left-color:var(--danger);background:var(--danger-wash);border-color:var(--danger-rule)}
-.note>:first-child,.warn>:first-child,.danger>:first-child,.ok>:first-child{margin-top:0}
-.note>:last-child,.warn>:last-child,.danger>:last-child,.ok>:last-child{margin-bottom:0}
+.fix{border-left-color:var(--accent);background:var(--bg-sunken);border-style:dashed}
+.note>:first-child,.warn>:first-child,.danger>:first-child,.ok>:first-child,.fix>:first-child{margin-top:0}
+.note>:last-child,.warn>:last-child,.danger>:last-child,.ok>:last-child,.fix>:last-child{margin-bottom:0}
 .co-hd{
   display:flex;align-items:center;gap:.5em;
   font:700 11.5px/1 var(--mono);letter-spacing:.11em;text-transform:uppercase;
@@ -270,24 +295,19 @@ td code{font-size:.9em}
 .danger .co-hd{color:var(--danger)}
 .warn .co-hd{color:var(--accent-ink)}
 .ok .co-hd{color:var(--good)}
-.note .co-hd{color:var(--ink-faint)}
+.note .co-hd,.fix .co-hd{color:var(--ink-faint)}
 
-/* the big one */
 .danger.mains{border-left-width:5px;padding:20px 22px}
 .danger.mains .shout{
-  display:block; font:700 clamp(1rem,2.4vw,1.22rem)/1.35 var(--sans);
-  color:var(--danger); margin:.45em 0; letter-spacing:-.01em;
+  display:block;font:700 clamp(1rem,2.4vw,1.2rem)/1.35 var(--sans);
+  color:var(--danger);margin:.45em 0;letter-spacing:-.01em;
 }
 .danger.mains ol{counter-reset:r;list-style:none;padding-left:0;margin:1.1em 0 0}
-.danger.mains ol li{
-  counter-increment:r; position:relative; padding-left:2.3em; margin:.8em 0;
-}
+.danger.mains ol li{counter-increment:r;position:relative;padding-left:2.3em;margin:.8em 0}
 .danger.mains ol li::before{
-  content:counter(r); position:absolute; left:0; top:.05em;
-  width:1.65em;height:1.65em;border-radius:5px;
-  display:grid;place-items:center;
-  font:700 12px/1 var(--mono);
-  background:var(--danger);color:var(--danger-wash);
+  content:counter(r);position:absolute;left:0;top:.05em;
+  width:1.65em;height:1.65em;border-radius:5px;display:grid;place-items:center;
+  font:700 12px/1 var(--mono);background:var(--danger);color:var(--danger-wash);
 }
 .oneline{
   margin-top:1.2em;padding:12px 15px;border-radius:8px;
@@ -295,35 +315,68 @@ td code{font-size:.9em}
   font:600 14.6px/1.5 var(--sans);color:var(--ink);
 }
 
+/* ═══ THE MODULE ID DIAGRAM ═══ */
+.idcard{
+  margin:1.5em 0;padding:20px;border:1px solid var(--rule);border-radius:13px;
+  background:var(--bg-raised);box-shadow:var(--shadow);
+}
+.mods{display:grid;gap:24px;grid-template-columns:1fr}
+@media (min-width:640px){.mods{grid-template-columns:1fr 1fr;gap:20px}}
+.mod{text-align:center}
+.mod svg{width:100%;max-width:230px;height:auto;display:block;margin:0 auto}
+.mod-hd{
+  margin:0 0 4px;font:700 15px/1.3 var(--mono);
+}
+.mod.good .mod-hd{color:var(--good)}
+.mod.bad .mod-hd{color:var(--danger)}
+.mod-sub{font-size:13.4px;color:var(--ink-soft);margin:0 0 12px;line-height:1.45}
+.mod-verdict{
+  display:inline-block;margin-top:12px;padding:6px 11px;border-radius:6px;
+  font:700 11.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;
+}
+.mod.good .mod-verdict{background:var(--good-wash);color:var(--good);border:1px solid var(--good-rule)}
+.mod.bad .mod-verdict{background:var(--danger-wash);color:var(--danger);border:1px solid var(--danger-rule)}
+.svg-lbl{font:600 8.5px var(--mono);fill:var(--ink-soft)}
+.svg-lbl-em{font:700 9px var(--mono);fill:var(--ink)}
+.svg-lead{stroke:var(--ink-faint);stroke-width:.8;fill:none}
+.tell{
+  margin-top:20px;padding:14px 16px;border-top:1px solid var(--rule);
+  font-size:15.4px;text-align:center;
+}
+.tell b{display:block;margin:.3em 0}
+.tell .g{color:var(--good)}
+.tell .r{color:var(--danger)}
+
 /* ═══ TIMELINE ═══ */
 .timeline{list-style:none;padding:0;margin:1.3em 0 0}
-.timeline li{
-  position:relative;padding:0 0 1.15em 1.65em;
-  border-left:2px solid var(--rule);margin:0;
-}
+.timeline li{position:relative;padding:0 0 1.15em 1.65em;border-left:2px solid var(--rule);margin:0}
 .timeline li:last-child{border-left-color:transparent;padding-bottom:0}
 .timeline li::before{
-  content:"";position:absolute;left:-6px;top:.5em;
-  width:10px;height:10px;border-radius:50%;
-  background:var(--bg);border:2px solid var(--accent);
+  content:"";position:absolute;left:-6px;top:.5em;width:10px;height:10px;
+  border-radius:50%;background:var(--bg);border:2px solid var(--accent);
 }
-.timeline .when{
-  display:block;font:600 12px/1 var(--mono);color:var(--accent-ink);
-  letter-spacing:.05em;margin-bottom:.25em;
+.timeline .when{display:block;font:600 12px/1 var(--mono);color:var(--accent-ink);letter-spacing:.05em;margin-bottom:.25em}
+
+/* ═══ STEPS ═══ */
+.steps{counter-reset:s;list-style:none;padding:0;margin:1.2em 0}
+.steps > li{
+  counter-increment:s;position:relative;padding:0 0 1.1em 2.6em;margin:0;
+}
+.steps > li::before{
+  content:counter(s);position:absolute;left:0;top:-.05em;
+  width:1.85em;height:1.85em;border-radius:8px;display:grid;place-items:center;
+  font:700 13px/1 var(--mono);
+  background:var(--accent-wash);color:var(--accent-ink);border:1px solid var(--rule);
 }
 
-/* ═══ PIN TABLE ═══ */
-.pins{display:grid;gap:9px;margin:1.3em 0;grid-template-columns:1fr}
-@media (min-width:560px){.pins{grid-template-columns:1fr 1fr}}
-.pin{
-  display:flex;align-items:center;gap:11px;
-  padding:11px 14px;border:1px solid var(--rule);border-radius:9px;
-  background:var(--bg-raised);font:14px/1.3 var(--mono);
-}
-.pin .from{color:var(--ink-soft);min-width:3.4em}
-.pin .arrow{color:var(--accent);font-weight:700}
-.pin .to{color:var(--ink);font-weight:640}
-.pin.special{border-color:var(--accent);background:var(--accent-wash)}
+/* ═══ REQ GRID ═══ */
+.req{display:grid;gap:10px;margin:1.3em 0;grid-template-columns:1fr}
+@media (min-width:620px){.req{grid-template-columns:1fr 1fr}}
+.rq{padding:13px 15px;border:1px solid var(--rule);border-radius:10px;background:var(--bg-raised)}
+.rq.no-need{background:var(--bg-sunken)}
+.rq .rq-hd{font:600 10.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.55em}
+.rq p{margin:0;font-size:14.4px}
+.rq.no-need p{color:var(--ink-soft)}
 
 /* ═══ LINK GRID ═══ */
 .links{display:grid;gap:11px;margin:1.2em 0;grid-template-columns:1fr}
@@ -336,13 +389,30 @@ td code{font-size:.9em}
 .lk:hover{border-color:var(--accent);transform:translateY(-1px)}
 .lk .repo{font:600 14px/1.3 var(--mono);color:var(--accent-ink);display:block;word-break:break-word}
 .lk .what{display:block;margin-top:.35em;font-size:13.8px;color:var(--ink-soft);line-height:1.5}
-.lk.key{border-left:3px solid var(--accent)}
+.lk.key{border-left:3px solid var(--good)}
+.inline-links{font-size:14.6px;line-height:2}
+.inline-links code{font-size:.92em}
+
+/* ═══ DETAILS ═══ */
+details{
+  margin:1.3em 0;border:1px solid var(--rule);border-radius:10px;
+  background:var(--bg-sunken);overflow:hidden;
+}
+summary{
+  padding:13px 16px;cursor:pointer;font-weight:600;font-size:14.8px;
+  list-style:none;display:flex;align-items:center;gap:.6em;
+}
+summary::-webkit-details-marker{display:none}
+summary::before{
+  content:"▸";color:var(--accent);font-size:12px;transition:transform .15s;flex:none;
+}
+details[open] summary::before{transform:rotate(90deg)}
+summary:hover{color:var(--accent-ink)}
+.det-body{padding:0 16px 14px;border-top:1px solid var(--rule)}
+.det-body > :first-child{margin-top:1em}
 
 /* ═══ FOOTER ═══ */
-footer{
-  border-top:1px solid var(--rule);background:var(--bg-sunken);
-  padding:34px 0 46px;font-size:14.2px;color:var(--ink-soft);
-}
+footer{border-top:1px solid var(--rule);background:var(--bg-sunken);padding:34px 0 46px;font-size:14.2px;color:var(--ink-soft)}
 footer p{margin:.6em 0;max-width:75ch}
 footer .disc{font-size:13.4px;color:var(--ink-faint)}
 footer .fin{
@@ -351,7 +421,7 @@ footer .fin{
   font:13px/1 var(--mono);color:var(--ink-faint);
 }
 
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
@@ -366,26 +436,44 @@ footer .fin{
       Hardware liberation notes
     </span>
 
-    <h1>Sengled <span class="lede-accent">&ldquo;FFS&rdquo;</span> BR30 &mdash; local control &amp; open firmware</h1>
+    <h1>Sengled <span class="lede-accent">&ldquo;FFS&rdquo;</span> BR30 &mdash; local control without the cloud</h1>
 
     <p class="sub">
       Field notes for taking the <strong>Sengled 7.5&nbsp;W BR30 RGBCW WiFi bulb</strong>
       (<span class="asin">ASIN&nbsp;B097CYHRZJ</span>) <strong>fully local</strong> &mdash; no vendor
-      cloud, integrated into Home&nbsp;Assistant.
+      cloud, no account, integrated into Home&nbsp;Assistant.
     </p>
 
     <div class="hero-meta">
-      <span class="chip"><b>BR30</b> &middot; E26</span>
+      <span class="chip"><b>W12-N15</b> &middot; BR30 &middot; E26</span>
       <span class="chip"><b>7.5&nbsp;W</b> &middot; 65&nbsp;W equiv</span>
-      <span class="chip"><b>RGBCW</b> color + tunable white</span>
+      <span class="chip"><b>RGBCW</b> color</span>
       <span class="chip"><b>2.4&nbsp;GHz</b> WiFi only, no hub</span>
+      <span class="chip">✅ <b>WF864</b> confirmed &middot; MX1290</span>
+    </div>
+
+    <div class="answer">
+      <div class="co-hd">⚡ The short version</div>
+      <p>You almost certainly do not need to flash anything, and you do not need to solder anything.</p>
+      <p>
+        Sengled&rsquo;s cloud collapsed in 2025 &mdash; that&rsquo;s why your app is dead. But
+        Sengled&rsquo;s protocol has been reverse-engineered, so you can provision the bulb from a
+        laptop over its own WiFi AP and drive it from Home Assistant over plain UDP on your LAN.
+        <strong>No cloud, no MQTT broker, no flashing, no teardown.</strong>
+      </p>
+      <p>
+        That&rsquo;s <a href="#path1">Path&nbsp;1</a>, and it works on <em>most or all</em> Sengled
+        WiFi bulbs &mdash; <strong>including the ones that cannot be flashed at all.</strong>
+        Flashing open firmware is still possible, but only on one of the two module variants, and
+        it&rsquo;s now the <em>advanced</em> path rather than the default.
+      </p>
     </div>
 
     <div class="cta">
-      <a class="btn primary" href="#paths">Pick your path
+      <a class="btn primary" href="#id">Identify your module first
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
       </a>
-      <a class="btn" href="#safety">⚠ Mains safety</a>
+      <a class="btn" href="#path1">Path 1 — no soldering</a>
       <a class="btn" href="https://github.com/jphein/sengled-ffs-br30">Source on GitHub</a>
     </div>
   </div>
@@ -394,9 +482,9 @@ footer .fin{
 <div class="status">
   <div class="wrap">
     <span aria-hidden="true">🚧</span>
-    <span><b>Active research.</b> Sections marked 🚧 are still being confirmed on real hardware.
-    Everything else is sourced from FCC grant records, upstream project documentation, and
-    community tooling compatibility matrices.</span>
+    <span><b>Active research.</b> Sections marked 🚧 are unconfirmed on this exact hardware.
+    Everything else is sourced from FCC exhibit records, upstream project documentation, and
+    observation of a real bulb.</span>
   </div>
 </div>
 
@@ -405,14 +493,20 @@ footer .fin{
   <nav class="toc" aria-label="Contents">
     <h2>Contents</h2>
     <ol>
-      <li><a href="#why"><span class="num">00</span>Why this exists</a></li>
-      <li><a href="#paths"><span class="num">01</span>Pick your path</a></li>
-      <li><a href="#hardware"><span class="num">02</span>Hardware ID</a></li>
-      <li><a href="#deadcloud"><span class="num">03</span>The dead cloud</a></li>
-      <li><a href="#patha"><span class="num">04</span>Path A &mdash; local server</a></li>
-      <li><a href="#noota"><span class="num">05</span>Why no OTA flash</a></li>
-      <li><a href="#safety"><span class="num">06</span>⚠ Mains safety</a></li>
-      <li><a href="#pathb"><span class="num">07</span>Path B &mdash; UART flash</a></li>
+      <li><a href="#id" class="hi"><span class="num">00</span>Start here — ID check</a></li>
+      <li><a href="#what"><span class="num">01</span>What this bulb is</a></li>
+      <li><a href="#deadcloud"><span class="num">02</span>Why the cloud is dead</a></li>
+    </ol>
+    <div class="grp">The paths</div>
+    <ol>
+      <li><a href="#path1" class="hi"><span class="num">1</span>Solderless local control</a></li>
+      <li><a href="#path2"><span class="num">2</span>Local MQTT emulation</a></li>
+      <li><a href="#path3"><span class="num">3</span>Solderless OTA flash</a></li>
+      <li><a href="#path4" class="dim"><span class="num">4</span>UART + LibreTiny ⚠</a></li>
+    </ol>
+    <div class="grp">Reference</div>
+    <ol>
+      <li><a href="#ruledout"><span class="num">07</span>Ruled out: Tuya exploits</a></li>
       <li><a href="#ha"><span class="num">08</span>Home Assistant</a></li>
       <li><a href="#credits"><span class="num">09</span>Credits &amp; prior art</a></li>
     </ol>
@@ -420,291 +514,662 @@ footer .fin{
 
   <article>
 
-    <section id="why">
-      <h2><span class="sec-num">00</span>Why this repo exists</h2>
+    <!-- ══════════ 00 ID ══════════ -->
+    <section id="id">
+      <h2><span class="sec-num">00</span>Start here &mdash; the 5-minute ID check</h2>
       <p>
-        Sengled&rsquo;s cloud died in 2025. These bulbs are <strong>not Tuya devices</strong>, so
-        every &ldquo;flash your smart bulb over the air&rdquo; guide on the internet
-        <em>does not apply to them</em> &mdash; <code>tuya-convert</code> and
-        <code>tuya-cloudcutter</code> have nothing here to attack.
+        Everything branches on <strong>one marking</strong>, and reading it requires
+        <strong>no teardown</strong>. The bulb&rsquo;s own plastic body prints
+        <code>Contains FCC ID: 2AGN8-WF86x</code>.
       </p>
-      <p>This is the guide for the hardware you actually have.</p>
+
+      <div class="tscroll">
+        <table>
+          <thead><tr><th>FCC ID</th><th>Module</th><th>Chip</th><th>Flashable?</th><th>Your paths</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>2AGN8-WF863</code></td><td><strong>WF863</strong></td>
+              <td>Espressif <strong>ESP8266EX</strong></td>
+              <td class="yes">✅ yes, over the air</td>
+              <td>1, 2, <strong>3</strong></td>
+            </tr>
+            <tr class="hl">
+              <td><code>2AGN8-WF864</code></td><td><strong>WF864</strong></td>
+              <td>MXCHIP <strong>MX1290</strong><br><small>= Realtek RTL8710BN</small></td>
+              <td class="no">❌ not with existing tools</td>
+              <td>1, 2, <del>3</del>, 4⚠</td>
+            </tr>
+            <tr><td><code>2AGN8-WF862</code></td><td>WF862</td><td>MXCHIP MX1290</td><td class="no">❌</td><td>1, 2, 4⚠</td></tr>
+            <tr><td><code>P53-EMW3091</code></td><td>EMW3091</td><td>MXCHIP MX1290</td><td class="no">❌</td><td>1, 2, 4⚠</td></tr>
+          </tbody>
+        </table>
+      </div>
+
       <div class="ok">
-        <div class="co-hd">The short answer</div>
+        <div class="co-hd">✅ Confirmed on the bulb behind these notes</div>
         <p>
-          You almost certainly want <strong><a href="#patha">Path&nbsp;A</a></strong>: keep the
-          stock firmware and stand up a <strong>local replacement for Sengled&rsquo;s cloud</strong>.
-          No teardown, no soldering, no mains exposure, fully reversible, and it works no matter
-          which module revision is inside your bulb.
+          Module marking <strong><code>WF864SM-M6</code></strong>,
+          <strong><code>FCC ID: 2AGN8-WF864</code></strong> → <strong>MXCHIP MX1290 / Realtek
+          RTL8710BN</strong>. So for this ASIN: <strong>no solderless flash path exists</strong>, and
+          <a href="#path1">Path&nbsp;1</a> is the answer.
+        </p>
+        <p>
+          <strong>Read your own label anyway.</strong> Sengled shipped multiple module generations
+          concurrently, model numbers have been reused across revisions, and the
+          flashable/not-flashable answer depends entirely on which one is in <em>your</em> hand. The
+          good news: Path&nbsp;1 works either way, so nothing blocks you while you look.
+        </p>
+      </div>
+
+      <h3>If the label is worn: the antenna tells you at a glance</h3>
+      <p>
+        No magnifier needed. The two modules have <strong>visibly different antennas</strong> — the
+        fastest tell that exists:
+      </p>
+
+      <div class="idcard">
+        <div class="mods">
+
+          <!-- WF863 -->
+          <div class="mod good">
+            <p class="mod-hd">WF863</p>
+            <p class="mod-sub">Espressif ESP8266EX</p>
+            <svg viewBox="0 0 200 168" role="img" aria-label="WF863 module: green PCB with a metal shield can, a white ceramic chip antenna overhanging the top edge, and a protruding tab on the left carrying five gold castellated pads labelled GND 3V3 RX TX IO0.">
+              <!-- white ceramic antenna -->
+              <rect x="82" y="6" width="34" height="21" rx="2" fill="var(--ceramic)" stroke="var(--ink-faint)" stroke-width="1"/>
+              <rect x="86" y="10" width="26" height="4" rx="1" fill="var(--ink-faint)" opacity=".3"/>
+              <!-- pcb -->
+              <rect x="56" y="26" width="88" height="96" rx="3" fill="var(--pcb)" stroke="var(--pcb-edge)" stroke-width="1.5"/>
+              <!-- shield can -->
+              <rect x="64" y="36" width="72" height="62" rx="2" fill="var(--shield)" stroke="var(--pcb-edge)" stroke-width="1"/>
+              <rect x="64" y="36" width="72" height="10" rx="2" fill="var(--shield-hi)"/>
+              <g stroke="var(--pcb-edge)" stroke-width=".4" opacity=".35">
+                <path d="M68 50v44M76 50v44M84 50v44M92 50v44M100 50v44M108 50v44M116 50v44M124 50v44M132 50v44"/>
+              </g>
+              <!-- protruding tab with 5 gold pads -->
+              <path d="M56 62 H36 v34 h20 z" fill="var(--pcb)" stroke="var(--pcb-edge)" stroke-width="1.5"/>
+              <g fill="var(--gold)">
+                <rect x="38" y="65" width="9" height="4.6" rx="1"/>
+                <rect x="38" y="71.6" width="9" height="4.6" rx="1"/>
+                <rect x="38" y="78.2" width="9" height="4.6" rx="1"/>
+                <rect x="38" y="84.8" width="9" height="4.6" rx="1"/>
+                <rect x="38" y="91.4" width="9" height="4.6" rx="1"/>
+              </g>
+              <!-- bottom pads -->
+              <g fill="var(--gold)" opacity=".85">
+                <rect x="66" y="118" width="7" height="7" rx="1"/>
+                <rect x="80" y="118" width="7" height="7" rx="1"/>
+                <rect x="94" y="118" width="7" height="7" rx="1"/>
+                <rect x="108" y="118" width="7" height="7" rx="1"/>
+                <rect x="122" y="118" width="7" height="7" rx="1"/>
+              </g>
+              <!-- callouts -->
+              <path class="svg-lead" d="M120 16 H160"/>
+              <text class="svg-lbl-em" x="162" y="14">WHITE</text>
+              <text class="svg-lbl" x="162" y="24">ceramic</text>
+              <path class="svg-lead" d="M34 79 H14 V140 H60"/>
+              <text class="svg-lbl-em" x="62" y="137">5 gold pads</text>
+              <text class="svg-lbl" x="62" y="147">on its own tab</text>
+              <text class="svg-lbl" x="62" y="157">GND 3V3 RX TX IO0</text>
+            </svg>
+            <span class="mod-verdict">✅ Flashable</span>
+          </div>
+
+          <!-- WF864 -->
+          <div class="mod bad">
+            <p class="mod-hd">WF864</p>
+            <p class="mod-sub">MXCHIP MX1290 (RTL8710BN)</p>
+            <svg viewBox="0 0 200 168" role="img" aria-label="WF864 module: green PCB with a metal shield can carrying a QR code sticker, a plain green etched trace antenna on the left that is part of the board itself, and castellated pads along the board's own bottom edge. No white component and no protruding tab.">
+              <!-- pcb -->
+              <rect x="56" y="26" width="88" height="96" rx="3" fill="var(--pcb)" stroke="var(--pcb-edge)" stroke-width="1.5"/>
+              <!-- etched trace antenna: part of the board, same green -->
+              <path d="M56 40 H28 v52 h28 z" fill="var(--pcb)" stroke="var(--pcb-edge)" stroke-width="1.5"/>
+              <g stroke="var(--pcb-edge)" stroke-width="2.2" opacity=".55" fill="none">
+                <path d="M34 46 h16M34 54 h16M34 62 h16M34 70 h16M34 78 h16M34 86 h16"/>
+              </g>
+              <!-- shield can + QR -->
+              <rect x="66" y="34" width="70" height="60" rx="2" fill="var(--shield)" stroke="var(--pcb-edge)" stroke-width="1"/>
+              <rect x="82" y="42" width="38" height="38" rx="1" fill="var(--ceramic)" stroke="var(--ink-faint)" stroke-width=".7"/>
+              <g fill="var(--ink)">
+                <rect x="86" y="46" width="9" height="9"/><rect x="107" y="46" width="9" height="9"/>
+                <rect x="86" y="67" width="9" height="9"/>
+                <rect x="99" y="46" width="3" height="3"/><rect x="99" y="53" width="3" height="3"/>
+                <rect x="99" y="60" width="3" height="3"/><rect x="106" y="60" width="3" height="3"/>
+                <rect x="113" y="60" width="3" height="3"/><rect x="99" y="67" width="3" height="3"/>
+                <rect x="106" y="73" width="3" height="3"/><rect x="113" y="67" width="3" height="3"/>
+              </g>
+              <g fill="var(--ceramic)">
+                <rect x="88" y="48" width="5" height="5"/><rect x="109" y="48" width="5" height="5"/>
+                <rect x="88" y="69" width="5" height="5"/>
+              </g>
+              <!-- silkscreen -->
+              <text class="svg-lbl" x="70" y="106" style="font-size:7px">M/N: WF864</text>
+              <text class="svg-lbl" x="70" y="115" style="font-size:7px">2AGN8-WF864</text>
+              <!-- castellated pads on the board's own edge -->
+              <g fill="var(--gold)" opacity=".85">
+                <rect x="62" y="118" width="7" height="7" rx="1"/>
+                <rect x="76" y="118" width="7" height="7" rx="1"/>
+                <rect x="90" y="118" width="7" height="7" rx="1"/>
+                <rect x="104" y="118" width="7" height="7" rx="1"/>
+                <rect x="118" y="118" width="7" height="7" rx="1"/>
+                <rect x="132" y="118" width="7" height="7" rx="1"/>
+              </g>
+              <!-- callouts -->
+              <path class="svg-lead" d="M26 66 H12 V140 H46"/>
+              <text class="svg-lbl-em" x="48" y="137">plain GREEN</text>
+              <text class="svg-lbl" x="48" y="147">etched trace —</text>
+              <text class="svg-lbl" x="48" y="157">part of the PCB</text>
+              <path class="svg-lead" d="M138 58 H160"/>
+              <text class="svg-lbl" x="150" y="48">QR</text>
+            </svg>
+            <span class="mod-verdict">❌ Local control only</span>
+          </div>
+
+        </div>
+
+        <div class="tell">
+          <div class="co-hd" style="justify-content:center;color:var(--ink-faint)">🔑 The one-line tell</div>
+          <b class="g">White ceramic antenna block → WF863 → ESP8266 → flashable.</b>
+          <b class="r">Plain green etched-trace antenna → WF864 → MX1290 → local control only.</b>
+        </div>
+      </div>
+
+      <p>
+        The module&rsquo;s solder side also prints it in plain text &mdash; <code>M/N: WF864</code> /
+        <code>FCC ID: 2AGN8-WF864</code>. Both descriptions above were verified against the FCC
+        exhibit photographs on file for <a href="https://fccid.io/2AGN8-WF863"><code>2AGN8-WF863</code></a>
+        and <a href="https://fccid.io/2AGN8-WF864"><code>2AGN8-WF864</code></a>.
+      </p>
+      <div class="note">
+        <div class="co-hd">Why a drawing and not the photos</div>
+        <p>
+          The FCC exhibits are public records, but the test lab&rsquo;s report carries a
+          <em>&ldquo;shall not be reproduced except in full&rdquo;</em> notice &mdash; so the diagram
+          above is an original drawing of what those photos show. Follow the links to view the
+          originals at the source.
+        </p>
+      </div>
+
+      <details>
+        <summary>About that &ldquo;UART&rdquo; silkscreen — it does <em>not</em> identify the chip</summary>
+        <div class="det-body">
+          <p>
+            If you&rsquo;ve already opened a bulb and seen <code>UART</code> silkscreened near the
+            module: the word appears on <strong>none</strong> of the WF862/WF863/WF864/WF867 FCC
+            exhibit photos. Those modules label pins individually (<code>TX</code> <code>RX</code>
+            <code>GND</code> <code>3V3</code>). It is most likely either:
+          </p>
+          <ul>
+            <li>the <strong>bulb&rsquo;s driver PCB</strong> labelling the header where the
+              module&rsquo;s serial pads land, or</li>
+            <li>a later production revision than the 2020/2021 FCC samples.</li>
+          </ul>
+          <p>
+            It nudges slightly toward WF863 &mdash; whose serial pads sit on their own protruding
+            tab, exactly the sort of thing a vendor group-labels <code>UART</code> &mdash; but it
+            settles nothing. <strong>MX1290 is UART-programmable too</strong> (ISP via UART2, pins
+            <code>PA_29</code>/<code>PA_30</code>), so the label implies nothing either way.
+          </p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ══════════ 01 WHAT ══════════ -->
+    <section id="what">
+      <h2><span class="sec-num">01</span>What this bulb actually is</h2>
+
+      <h3>&ldquo;FFS&rdquo; is not a brand</h3>
+      <p>
+        The listing says <em>&ldquo;Updated <strong>FFS</strong> Smart Bulb&rdquo;</em>, and there is
+        no &ldquo;FFS&rdquo; manufacturer to chase. <code>FFS</code> is a fragment of
+        <strong>Sengled&rsquo;s own SKU</strong>: Best Buy sells this exact product (SKU 6463039) as
+        <em>&ldquo;Sengled Smart BR30 LED Bulbs Wi Fi … (2 Pack) Multicolor
+        <strong>W12-N15WFFS2P</strong>&rdquo;</em>. Decoding: <code>W12-N15</code> (model) +
+        <code>WF</code> (WiFi) + <strong><code>FS</code></strong> + <code>2P</code> (2-pack). That
+        <code>WFFS</code> fragment is where the Amazon title&rsquo;s &ldquo;Updated FFS&rdquo; comes
+        from.
+      </p>
+      <p>
+        <small>Plausibly <code>WFFS</code> itself encodes &ldquo;WiFi + Frustration-Free
+        Setup&rdquo; — Amazon&rsquo;s zero-touch provisioning, which these bulbs do support. Both
+        readings land in the same place: <strong>FFS is not a third-party brand.</strong></small>
+      </p>
+
+      <h3>Model identity: Sengled <strong>W12-N15</strong></h3>
+      <div class="tscroll">
+        <table>
+          <tbody>
+            <tr><th style="text-transform:none">Model</th><td><code>W12-N15</code> (BR30 multicolor) — from SKU <code>W12-N15WFFS2P</code></td></tr>
+            <tr><th style="text-transform:none">Expected module</th><td><code>WF864</code> = MXCHIP MX1290 = Realtek RTL8710BN</td></tr>
+            <tr><th style="text-transform:none">Family</th><td><code>B097CYHRZJ</code> (2-pack) · <code>B097CYZWQ1</code> (4-pack) · <code>B097CZ49V8</code> (daylight sibling)</td></tr>
+            <tr><th style="text-transform:none">Corroboration</th><td>Sengled&rsquo;s form-factor digit convention: <code>E12-N14</code> = Zigbee <strong>BR30</strong>, <code>B12-N1E</code> = Bluetooth flood ⇒ <code>W12</code> = <strong>WiFi BR30</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn">
+        <div class="co-hd">⚠ Two honest caveats</div>
+        <p>
+          The <code>SengledTools</code> compatibility table labels <code>W12-N15</code> as
+          <em>&ldquo;WiFi white LED&rdquo;</em> while Best Buy sells it as <em>Multicolor</em> —
+          most likely a description slip in the README, though hardware revisions within one model
+          number are also possible. And one low-quality write-up describes its W12-N15 bulbs as
+          ESP8266-based, but that same article also writes &ldquo;W15-N15&rdquo; and
+          &ldquo;W31-115&rdquo;, so its model strings are unreliable.
+        </p>
+        <p><strong>This is exactly why <a href="#id">§00</a> tells you to read the FCC ID rather
+          than trust any table.</strong></p>
+      </div>
+
+      <h3>Genuine Sengled, not a Tuya rebadge <small>&mdash; high confidence (~95%)</small></h3>
+      <ul>
+        <li>Sengled Co.,&nbsp;Ltd. (Zhejiang Shenghui Lighting) holds its <strong>own FCC grantee
+          code <code>2AGN8</code></strong> — 54 grants, 2016&ndash;2025 — covering a family of
+          <strong>self-designed WiFi modules</strong>.</li>
+        <li>Sengled ran its own cloud, its own <em>Sengled Home</em> app, its own OTA, and its own
+          MQTT/UDP protocol. Not Smart&nbsp;Life, not Tuya.</li>
+        <li><strong>Field confirmation:</strong> the bulb broadcasts an open SoftAP named
+          <code>Sengled_Wi-Fi Bulb_XXXX</code> &mdash; not a Tuya <code>SmartLife-XXXX</code> AP.</li>
+        <li><strong>Ruled out with high confidence:</strong> Beken BK7231T/BK7231N, Tuya
+          WB3S/WB2S/CB3S/TYWE3S, and the entire Tuya platform.</li>
+      </ul>
+
+      <div class="note">
+        <div class="co-hd">Why the usual heuristic fails here</div>
+        <p>
+          <em>&ldquo;Cheap RGBCW bulb in 2023+ ⇒ BK7231N&rdquo;</em> describes white-label ODM bulbs
+          built on Tuya&rsquo;s turnkey platform. Sengled is a real manufacturer with its own
+          silicon choices. <strong>Nothing in its WiFi line has ever been Beken or Tuya.</strong>
+        </p>
+      </div>
+
+      <h3>What the bulb&rsquo;s provisioning AP looks like</h3>
+      <p>Observed on real hardware:</p>
+      <div class="tscroll">
+        <table>
+          <tbody>
+            <tr><th style="text-transform:none">SoftAP SSID</th><td><code>Sengled_Wi-Fi Bulb_XXXX</code> (open, no password)</td></tr>
+            <tr><th style="text-transform:none">Bulb address</th><td><code>192.168.8.1</code> on <code>192.168.8.0/24</code> <small>— the bulb&rsquo;s own factory AP subnet</small></td></tr>
+            <tr><th style="text-transform:none">Control protocol</th><td><strong>UDP port 9080</strong></td></tr>
+            <tr><th style="text-transform:none">Open TCP ports</th><td><strong>none</strong> on 80, 8080, 8000, 5000, 9999, or 6668</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        That last row matters: <strong>setup is not plain HTTP</strong>, and port <code>6668</code>
+        &mdash; the Tuya local-control port &mdash; is closed, which is independent confirmation
+        that this is not a Tuya device.
+      </p>
+    </section>
+
+    <!-- ══════════ 02 DEAD CLOUD ══════════ -->
+    <section id="deadcloud">
+      <h2><span class="sec-num">02</span>Why the cloud is dead</h2>
+      <p>This is not a you-problem. The backend is gone.</p>
+      <ul class="timeline">
+        <li><span class="when">2025-06-18 → 22</span>
+          Multi-day total cloud outage. WiFi bulbs dead across app, Alexa, and Google. No public
+          statement from Sengled.</li>
+        <li><span class="when">2025-07-31</span>
+          Outage recurred; the app would not connect.</li>
+        <li><span class="when">2025-08-01</span>
+          Amazon <strong>permanently discontinued the Sengled Alexa skill</strong>, citing
+          <em>&ldquo;repeated extended service interruptions.&rdquo;</em></li>
+        <li><span class="when">Through 2025</span>
+          Sengled reportedly insolvent &mdash; staff unpaid since January, strikes by April.</li>
+      </ul>
+      <p>
+        Sengled&rsquo;s <strong>Zigbee and Matter</strong> bulbs were unaffected, because
+        they&rsquo;re controlled locally by a hub. Only the WiFi line depended on the cloud &mdash;
+        which is the line this bulb belongs to.
+      </p>
+      <div class="note">
+        <p>
+          🚧 A formal permanent-shutdown announcement could not be independently confirmed; treat
+          &ldquo;the cloud is dead&rdquo; as <strong>probable but unverified</strong>. It changes
+          nothing below &mdash; every path here is designed to not need it.
         </p>
       </div>
     </section>
 
-    <section id="paths">
-      <h2><span class="sec-num">01</span>Pick your path</h2>
-
+    <!-- ══════════ THE PATHS OVERVIEW ══════════ -->
+    <section id="paths-overview">
+      <h2><span class="sec-num">▸</span>The four paths</h2>
       <div class="paths">
         <div class="path rec">
           <div class="path-hd">
-            <span class="path-letter">A</span>
-            <h3>Local Sengled server</h3>
-            <span class="tag">Start here</span>
+            <span class="path-n">Path 1</span>
+            <h3>Solderless local control</h3>
+            <span class="tag">Recommended</span>
           </div>
-          <p>Keep stock firmware. Re-point the bulb at your own MQTT server instead of the dead cloud.</p>
+          <p>
+            Provision the bulb from a laptop over its own AP, then drive it from HA over UDP 9080.
+            No flashing, no soldering, no teardown, no MQTT broker, no Sengled account.
+            <strong>Works on modules that can&rsquo;t be flashed at all.</strong>
+          </p>
           <dl>
-            <dt>Works on</dt><dd><strong>Any</strong> WiFi Sengled bulb</dd>
-            <dt>Effort</dt><dd>Low &mdash; software only</dd>
-            <dt>Reversible</dt><dd class="yes">Yes</dd>
+            <dt>Works on</dt><dd>Most or all Sengled WiFi bulbs</dd>
+            <dt>Effort</dt><dd>~5 minutes per bulb, software only</dd>
+            <dt>Proven on</dt><dd><strong>W12-N15 stock firmware</strong> — this model</dd>
           </dl>
         </div>
 
         <div class="path">
-          <div class="path-hd">
-            <span class="path-letter">B</span>
-            <h3>UART&nbsp;→ ESPHome / Tasmota</h3>
-          </div>
-          <p>Teardown, solder, serial flash. Vendor firmware gone entirely.</p>
+          <div class="path-hd"><span class="path-n">Path 2</span><h3>Local MQTT emulation</h3></div>
+          <p>Run a full local replacement for Sengled&rsquo;s cloud; stock bulbs connect as if nothing changed.</p>
           <dl>
-            <dt>Works on</dt><dd><strong>ESP8266EX</strong> only (Sengled <code>WF863</code>)</dd>
-            <dt>Effort</dt><dd>High &mdash; teardown + soldering</dd>
-            <dt>Reversible</dt><dd class="wip">Only with a backup</dd>
+            <dt>Needs</dt><dd>HA add-on + Mosquitto</dd>
+            <dt>Use when</dt><dd>Path 1 misbehaves on UDP</dd>
           </dl>
         </div>
 
-        <div class="path dead">
-          <div class="path-hd">
-            <span class="path-letter">C</span>
-            <h3>OTA flash <small>(tuya-convert / cloudcutter)</small></h3>
-            <span class="tag">Impossible</span>
-          </div>
-          <p>Wrong silicon <em>and</em> wrong vendor &mdash; disqualified twice over.
-            <a href="#noota">Details&nbsp;→</a></p>
+        <div class="path">
+          <div class="path-hd"><span class="path-n">Path 3</span><h3>Solderless OTA flash</h3><span class="tag">Advanced</span></div>
+          <p>Push a rescue shim over WiFi, then flash ESPHome / Tasmota / WLED. <strong>Also solderless.</strong></p>
+          <dl>
+            <dt>Requires</dt><dd><code>2AGN8-WF863</code> / ESP8266EX</dd>
+            <dt>Gets you</dt><dd>Firmware you own outright</dd>
+          </dl>
         </div>
 
-        <div class="path dead">
-          <div class="path-hd">
-            <span class="path-letter">D</span>
-            <h3>OpenBeken</h3>
-            <span class="tag">N/A</span>
-          </div>
-          <p>There is no Beken silicon anywhere in the Sengled line. Nothing to flash it onto.</p>
+        <div class="path exp">
+          <div class="path-hd"><span class="path-n">Path 4</span><h3>UART + LibreTiny</h3><span class="tag">⚠ Experimental</span></div>
+          <p>The only theoretical route on MX1290. <strong>Zero prior art — you would be first.</strong> Mains-voltage teardown.</p>
+          <dl>
+            <dt>Blockers</dt><dd>Possible flash encryption; no pin map</dd>
+          </dl>
         </div>
-      </div>
 
-      <div class="note">
-        <div class="co-hd">Net</div>
-        <p><strong>Flashing this bulb is physical/serial only.</strong> There is no software-only
-        reflash path, at any firmware version.</p>
+        <div class="path dead" style="grid-column:1/-1">
+          <div class="path-hd"><span class="path-n">Ruled out</span><h3>tuya-convert &amp; tuya-cloudcutter</h3><span class="tag">Impossible</span></div>
+          <p>
+            Disqualified by <strong>vendor</strong>, not by silicon — a narrower reason than usually
+            claimed, and worth understanding before you spend an evening on it.
+            <a href="#ruledout">Details →</a>
+          </p>
+        </div>
       </div>
     </section>
 
-    <section id="hardware">
-      <h2><span class="sec-num">02</span>Hardware identification</h2>
-
-      <h3>&ldquo;FFS&rdquo; is not a brand</h3>
+    <!-- ══════════ PATH 1 ══════════ -->
+    <section id="path1">
+      <h2><span class="sec-num">1</span>Solderless local control<span class="pill rec">Recommended</span></h2>
       <p>
-        The listing title reads <em>&ldquo;Updated <strong>FFS</strong> Smart Bulb&rdquo;</em>.
-        <strong>FFS = Amazon Frustration-Free Setup</strong> (Wi-Fi Simple Setup &mdash; zero-touch
-        provisioning against an Echo already on your network). There is no &ldquo;FFS&rdquo;
-        manufacturer to chase. <strong>The brand really is Sengled.</strong>
+        <strong>No flashing. No soldering. No teardown. No Sengled account. No MQTT broker.</strong>
+        Works on <em>most, if not all</em> Sengled WiFi bulbs &mdash; explicitly
+        <strong>including modules that cannot be flashed</strong>.
+      </p>
+      <p>
+        This is <em>the</em> path. Everything else in this document is either an alternative to it or
+        an upgrade from it.
       </p>
 
-      <h3>This is genuine Sengled, not a Tuya rebadge <small>&mdash; high confidence</small></h3>
-      <ul>
-        <li>Sengled Co.,&nbsp;Ltd. holds its <strong>own FCC grantee code <code>2AGN8</code></strong>
-          (54 grants, 2016&ndash;2025), covering a family of <strong>self-designed WiFi
-          modules</strong>.</li>
-        <li>Sengled ran its own cloud, its own <em>Sengled Home</em> app, its own OTA, and its own
-          MQTT/UDP protocol &mdash; <strong>not</strong> Smart&nbsp;Life / Tuya.</li>
-        <li><strong>Consequence:</strong> the Tuya exploits are structurally useless here.</li>
-      </ul>
-
-      <h3>Sengled&rsquo;s WiFi module family <small>(FCC grantee <code>2AGN8</code>)</small></h3>
-      <div class="tscroll">
-        <table>
-          <thead><tr><th>Module</th><th>FCC ID</th><th>Granted</th><th>Silicon</th><th>Flashable?</th></tr></thead>
-          <tbody>
-            <tr><td><code>WF861</code></td><td><code>2AGN8-WF861</code></td><td>2020-11-02</td><td class="wip">🚧 unconfirmed</td><td class="wip">🚧</td></tr>
-            <tr><td><code>WF862</code></td><td><code>2AGN8-WF862</code></td><td>2021-04-05</td><td class="wip">🚧 unconfirmed</td><td class="wip">🚧</td></tr>
-            <tr><td><strong><code>WF863</code></strong></td><td><code>2AGN8-WF863</code></td><td>2021-04-20</td><td><strong>Espressif ESP8266EX</strong></td><td class="yes">✅ yes</td></tr>
-            <tr><td><strong><code>WF864</code></strong></td><td><code>2AGN8-WF864</code></td><td>2021-06-11</td><td><strong>MXCHIP MX1290</strong><br><small>ARM Cortex-M4F, 133&nbsp;MHz</small></td><td class="no">❌ no</td></tr>
-            <tr><td><code>WF866</code></td><td><code>2AGN8-WF866</code></td><td>2022-11-14</td><td class="wip">🚧 unconfirmed</td><td class="wip">🚧</td></tr>
-            <tr><td><code>WF867</code></td><td><code>2AGN8-WF867</code></td><td>2022-03-02</td><td class="wip">🚧 unconfirmed</td><td class="wip">🚧</td></tr>
-            <tr><td><code>SLMB01</code></td><td><code>2AGN8-SLMB01</code></td><td>2024-06-12</td><td class="wip">🚧 unconfirmed</td><td class="wip">🚧</td></tr>
-          </tbody>
-        </table>
+      <h3>What you need</h3>
+      <div class="req">
+        <div class="rq">
+          <div class="rq-hd">Software</div>
+          <p><a href="https://github.com/HamzaETTH/SengledTools"><code>HamzaETTH/SengledTools</code></a> — Python 3.10+</p>
+        </div>
+        <div class="rq">
+          <div class="rq-hd">Hardware</div>
+          <p>An ordinary laptop with <strong>normal WiFi client mode</strong></p>
+        </div>
+        <div class="rq no-need">
+          <div class="rq-hd">NOT needed</div>
+          <p>❌ AP-mode adapter &nbsp;❌ monitor mode &nbsp;❌ special chipset &nbsp;❌ Docker &nbsp;❌ Linux &nbsp;❌ soldering iron</p>
+        </div>
+        <div class="rq">
+          <div class="rq-hd">Strongly recommended</div>
+          <p>A <strong>USB Ethernet adapter</strong> — a second NIC lets you stay on your LAN while your WiFi is attached to the bulb&rsquo;s AP. Makes iteration far less painful.</p>
+        </div>
       </div>
+
+      <h3>Step 1 &mdash; provision the bulb to your WiFi</h3>
+      <pre><code>git clone https://github.com/HamzaETTH/SengledTools.git
+cd SengledTools
+pip install -r requirements.txt
+
+python sengled_tool.py --setup-wifi        <span class="cmt"># repeat once per bulb</span></code></pre>
+
+      <ol class="steps">
+        <li><strong>Factory-reset the bulb:</strong> flick the power switch <strong>5+ times</strong> until it flashes.</li>
+        <li>The bulb broadcasts its own open AP, <strong><code>Sengled_Wi-Fi Bulb_XXXX</code></strong>.
+          Your laptop joins it as an ordinary client — the bulb is at <code>192.168.8.1</code>,
+          listening on <strong>UDP 9080</strong>.</li>
+        <li>The wizard pushes your WiFi credentials as an RC4-encrypted <code>setParamsRequest</code>.</li>
+        <li>The bulb then calls the tool&rsquo;s <strong>local</strong> server at
+          <code>/jbalancer/new/bimqtt</code> and <code>/life2/device/accessCloud.json</code> —
+          standing in for Sengled&rsquo;s dead cloud — and binds locally.</li>
+      </ol>
+
+      <h3>Step 2 &mdash; control it from Home Assistant</h3>
       <p>
-        Also seen in the wild on some Sengled RGBW models: an <strong>MXCHIP EMW3091</strong>
-        module (silicon unconfirmed, but MXCHIP&nbsp;⇒ not an ESP&nbsp;⇒ not flashable with
-        community tooling).
+        Install the bundled <strong><code>sengled_udp</code></strong> custom integration. Bulbs
+        appear as <code>light</code> entities driven over <strong>UDP 9080</strong> on your LAN. Per
+        its README: <em>&ldquo;no cloud, no MQTT broker, and no flashing.&rdquo;</em>
       </p>
 
-      <div class="warn">
-        <div class="co-hd">The usual heuristic fails here</div>
+      <h3>Practical friction to expect</h3>
+      <p>
+        The pairing flow was historically TLS-fragile — ALPN <code>x-amzn-mqtt-ca</code>, narrow
+        TLS 1.2 cipher selection, and a certificate SAN that breaks when the host IP changes.
+        <strong>PR #63 fixed all three.</strong>
+      </p>
+      <div class="ok">
+        <div class="co-hd">✅ Two rules that save an evening</div>
+        <ol>
+          <li><strong>Use current <code>master</code></strong>, not a release tarball.</li>
+          <li><strong>Give your host a static LAN IP</strong> so the cert SAN stays valid.</li>
+        </ol>
+      </div>
+
+      <div class="ok">
+        <div class="co-hd">Why this is trustworthy for <em>this</em> model</div>
         <p>
-          There is <strong>no Beken BK7231T/BK7231N, no Realtek RTL8710/RTL8720, and no Tuya
-          WB3S/CB3S/TYWE3S</strong> anywhere in the Sengled line. The common assumption
-          <em>&ldquo;cheap 2023+ RGBCW bulb ⇒ BK7231N&rdquo;</em> does <strong>not</strong> hold,
-          because this is a first-party brand shipping in-house modules.
+          <code>SengledTools</code> <strong>PR #63</strong> (merged ~Jun 2026) was tested on
+          <em>&ldquo;W12-N15 bulbs on stock firmware&rdquo;</em> and fixed exactly the
+          out-of-box-activation / credentials-don&rsquo;t-persist failure. <strong>That is this
+          model.</strong> It&rsquo;s the single most decisive datum in this document: the
+          recommended path isn&rsquo;t theoretical here — it&rsquo;s the path someone already
+          debugged on this bulb.
         </p>
       </div>
 
-      <h3>How to tell which module <em>your</em> bulb has</h3>
-      <p>
-        🚧 <em>Confirmation on real hardware pending.</em> The reliable method is a teardown and
-        reading the silkscreen on the RF module (<code>WF863</code>, <code>WF864</code>,
-        <code>EMW3091</code>, …). A teardown of this ASIN shows a module with
-        <strong><code>UART</code> silkscreened on it</strong>, consistent with the Sengled WF-series
-        debug pinout.
-      </p>
-
-      <h4>Known model-code mapping from community tooling</h4>
-      <div class="tscroll">
-        <table>
-          <thead><tr><th>Sengled model</th><th>Type</th><th>Module / chip</th><th>Flashable?</th></tr></thead>
-          <tbody>
-            <tr><td><code>W31-N15</code></td><td>RGBW</td><td>WF863 / ESP8266EX</td><td class="yes">✅</td></tr>
-            <tr><td><code>W31-N11</code></td><td>White</td><td>WF863 / ESP8266EX</td><td class="yes">✅</td></tr>
-            <tr><td><code>W21-U23</code></td><td>RGBW</td><td>ESP8266EX</td><td class="yes">✅</td></tr>
-            <tr><td><code>W12-N15</code></td><td>White</td><td>WF864 / MX1290</td><td class="no">❌</td></tr>
-            <tr><td><code>W21-N13</code></td><td>RGBW</td><td>MXCHIP EMW3091</td><td class="no">❌</td></tr>
-            <tr><td><code>W11-N13</code></td><td>RGBW</td><td>MXCHIP EMW3091</td><td class="no">❌</td></tr>
-            <tr><td><strong>BR30 7.5&nbsp;W RGBCW</strong><br><small><code>B097CYHRZJ</code></small></td><td>RGBCW</td><td class="wip">🚧 to be confirmed</td><td class="wip">🚧</td></tr>
-          </tbody>
-        </table>
+      <div class="danger">
+        <div class="co-hd">⚠ Avoid the older cloud-proxy integrations</div>
+        <p>
+          <code>jfarmer08/ha-sengledapi</code>, <code>ripleyeldridge/…</code>, and
+          <code>kylev/ha-sengledng</code> all proxy the <strong>Sengled cloud API</strong>, which no
+          longer exists. Only post-shutdown designs (<code>sengled_udp</code>,
+          <code>ha-sengled-local</code>) can work, because only they assume the cloud is gone.
+        </p>
       </div>
     </section>
 
-    <section id="deadcloud">
-      <h2><span class="sec-num">03</span>Background: the Sengled cloud is dead</h2>
-      <p>This is not a you-problem. The backend is gone.</p>
-      <ul class="timeline">
-        <li>
-          <span class="when">2025-06-18</span>
-          Sengled&rsquo;s cloud went down hard. WiFi bulbs stopped responding via the app, Alexa,
-          and Google. Outages recurred through July 2025.
-        </li>
-        <li>
-          <span class="when">2025-08-01</span>
-          Amazon <strong>permanently discontinued the Sengled Alexa skill</strong>, citing
-          <em>&ldquo;repeated extended service interruptions.&rdquo;</em>
-        </li>
-        <li>
-          <span class="when">Through 2025</span>
-          Sengled reportedly in financial crisis &mdash; staff unpaid since January, strikes by
-          April.
-        </li>
-      </ul>
+    <!-- ══════════ PATH 2 ══════════ -->
+    <section id="path2">
+      <h2><span class="sec-num">2</span>Local MQTT server emulation<span class="pill adv">Alternative</span></h2>
       <p>
-        The bulbs themselves are fine. They are just calling a phone number that no longer answers.
-        <strong>Both working paths below are about giving them a number that does.</strong>
+        A heavier alternative to Path 1: run a <strong>full local replacement for Sengled&rsquo;s
+        cloud</strong> and let stock bulbs connect to it as if nothing had changed.
       </p>
-    </section>
-
-    <section id="patha">
-      <h2><span class="sec-num">04</span>Path A &mdash; local Sengled server <small>(no flashing)</small></h2>
-      <p>
-        Keep the stock firmware; stand up a <strong>local replacement for Sengled&rsquo;s
-        cloud</strong> and re-pair the bulbs to it. Works on <strong>all</strong> WiFi
-        (&ldquo;No Hub Required&rdquo;) Sengled bulbs regardless of module &mdash; which is exactly
-        what this ASIN is.
-      </p>
-
-      <h3>Components</h3>
       <div class="links">
         <a class="lk key" href="https://github.com/FalconFour/ha-sengled-local">
           <span class="repo">FalconFour/ha-sengled-local</span>
-          <span class="what">Home Assistant integration + add-on. Runs a local Sengled server
-          (MQTT) — <em>&ldquo;brings your Sengled smart bulbs back to life after Sengled shut down
-          their cloud servers.&rdquo;</em></span>
+          <span class="what">HA integration + add-on. <em>&ldquo;Brings your Sengled smart bulbs
+            back to life after Sengled shut down their cloud servers.&rdquo;</em> Supports all WiFi
+            (&ldquo;No Hub Required&rdquo;) Sengled bulbs.</span>
         </a>
-        <a class="lk key" href="https://github.com/HamzaETTH/SengledTools">
+        <a class="lk" href="https://github.com/HamzaETTH/SengledTools">
           <span class="repo">HamzaETTH/SengledTools</span>
-          <span class="what">Pairing/provisioning tool — points the bulb at your server instead of
-          Sengled&rsquo;s. Also offers a direct local UDP HA integration and a
-          <code>sengled_tool.py</code> CLI.</span>
+          <span class="what">Still does the pairing — pointed at the add-on&rsquo;s
+            <code>/bimqtt</code> and <code>accessCloud.json</code> URLs instead of
+            Sengled&rsquo;s.</span>
         </a>
       </div>
-
-      <h3>Outline</h3>
-      <ol>
-        <li>Install the <strong><code>ha-sengled-local</code></strong> add-on + integration in Home
-          Assistant (HACS or manual).</li>
-        <li>Note the add-on&rsquo;s two endpoints &mdash; its <strong><code>/bimqtt</code></strong>
-          URL and its <strong><code>accessCloud.json</code></strong> URL.</li>
-        <li>Run <strong>SengledTools</strong> and point its onboarding at <em>those</em> URLs
-          instead of Sengled&rsquo;s cloud.</li>
-        <li>Factory-reset the bulb (power-cycle sequence) so it re-enters pairing mode, then
-          provision it with your WiFi credentials via SengledTools.</li>
-        <li>The bulb connects to <strong>your</strong> MQTT broker. Home Assistant discovers it as a
-          light entity.</li>
-      </ol>
-      <p>
-        🚧 <em>Exact click-path, reset timing, and the add-on config block are being verified.</em>
-      </p>
-
-      <h3>Trade-offs</h3>
-      <div class="tscroll">
-        <table>
-          <thead><tr><th>Good</th><th>Bad</th></tr></thead>
-          <tbody><tr>
-            <td>No teardown. No mains exposure. Reversible. Module-agnostic. Scales identically
-              across a whole batch.</td>
-            <td>You are still running Sengled&rsquo;s closed firmware. No ESPHome-level
-              customization, no effects engine, and any firmware bug is permanent.</td>
-          </tr></tbody>
-        </table>
+      <div class="note">
+        <p>
+          <strong>Choose Path 1 unless you specifically want MQTT.</strong> Path 2 needs an add-on
+          plus a Mosquitto broker; Path 1 needs neither. Path 2&rsquo;s advantage is that it speaks
+          the bulb&rsquo;s native MQTT dialect, so if your bulb misbehaves on UDP it&rsquo;s the
+          natural fallback.
+        </p>
       </div>
     </section>
 
-    <section id="noota">
-      <h2><span class="sec-num">05</span>Why over-the-air flashing is off the table</h2>
-      <p>For completeness, because this is the first thing everyone tries.</p>
+    <!-- ══════════ PATH 3 ══════════ -->
+    <section id="path3">
+      <h2><span class="sec-num">3</span>Solderless OTA to open firmware<span class="pill adv">ESP8266 only</span></h2>
+      <div class="warn">
+        <div class="co-hd">Requires <code>2AGN8-WF863</code> / ESP8266EX</div>
+        <p>
+          On WF864/MX1290 this simply does not work — the tool refuses, and there&rsquo;s nothing to
+          fall back on but <a href="#path4">Path&nbsp;4</a>.
+        </p>
+      </div>
+      <p>
+        Here&rsquo;s the part most guides get wrong: <strong>on ESP8266 units, flashing open
+        firmware is <em>also</em> solderless.</strong> <code>SengledTools</code> impersonates
+        Sengled&rsquo;s own cloud and pushes an arbitrary image over WiFi — Sengled&rsquo;s OTA
+        mechanism <em>is</em> exploitable, it just isn&rsquo;t Tuya&rsquo;s.
+      </p>
 
-      <h3><code>tuya-cloudcutter</code> &mdash; two independent disqualifications</h3>
-      <ol>
-        <li>
-          <strong>Wrong silicon.</strong> Supported chips are <strong>Beken BK7231T / BK7231N</strong>
-          (unpatched), <strong>Realtek RTL8710BN</strong> (unpatched, SDK&nbsp;2.0.0 excluded), and
-          <strong>RTL8720CF</strong> (with caveats). The upstream docs are explicit:
-          <strong>ESP8266 / ESP8285 and other chipsets are NOT supported.</strong> LibreTiny puts it
-          bluntly &mdash; <em>&ldquo;This currently applies to BK7231T and BK7231N only.
-          <code>tuya-cloudcutter</code> can&rsquo;t be used for other chips.&rdquo;</em>
-        </li>
-        <li>
-          <strong>Wrong vendor entirely.</strong> Even if the silicon matched, cloudcutter attacks
-          the <strong>Tuya SDK</strong>. This bulb does not run Tuya firmware.
-        </li>
+      <pre><code><span class="cmt"># Provision as in Path 1, then push the rescue shim over the air</span>
+python sengled_tool.py --mac &lt;BULB_MAC&gt; --upgrade "firmware/shim.bin"</code></pre>
+
+      <ol class="steps">
+        <li>The bulb reboots into <strong><code>Sengled-Rescue</code></strong>, its own AP. Join it
+          and open <strong><code>http://192.168.4.1</code></strong> — it is slow, keep refreshing.</li>
+        <li><strong>Back up the full flash first</strong> (<em>full → backup selected</em>). This is
+          your only way home.</li>
+        <li>Then flash <strong>Tasmota / ESPHome / WLED</strong>
+          (<em>boot → choose <code>.bin</code> → flash selected</em>).</li>
       </ol>
 
-      <div class="note">
-        <div class="co-hd">Useful if you own actual Tuya gear</div>
+      <h3>Known gotchas</h3>
+      <ul>
+        <li><em>&ldquo;write blocked (overlaps running slot)&rdquo;</em> → some bulbs boot
+          <code>ota_0</code> instead of <code>ota_1</code>. Use the Rescue UI&rsquo;s
+          <strong>&ldquo;Relocate to ota_1&rdquo;</strong>, reboot, retry.</li>
+        <li>Expect <strong>several attempts</strong>, power-cycling between tries. This is documented
+          as flaky (SengledTools issues #47, #48).</li>
+        <li>⚠️ <em>&ldquo;Flashing firmware carries risk of permanently bricking your bulb.&rdquo;</em></li>
+      </ul>
+
+      <div class="ok">
         <p>
-          <strong>Tuya patched the SDK in February 2022.</strong> Any device built against a patched
-          SDK is not exploitable. Known-patched BK7231N firmware versions include
-          <code>1.1.2</code>, <code>1.1.12</code>, <code>1.1.15</code>, <code>1.3.3</code>,
-          <code>1.3.8</code>, <code>1.3.10</code>, <code>1.5.10</code>, and <code>2.0.15</code>.
+          <strong>If your bulb is WF863, this is a genuinely good outcome:</strong> every bulb can be
+          converted to ESPHome with zero disassembly, and you end up owning the firmware outright.
         </p>
       </div>
 
-      <h3><code>tuya-convert</code></h3>
-      <p>Same reasoning, older exploit: it hijacks a <strong>Tuya</strong> OTA endpoint that this
-        device never contacts.</p>
-
-      <h3>Sengled&rsquo;s own OTA</h3>
-      <p>Sengled shipped its own OTA channel &mdash; but it was served from the cloud that is now
-        dead, and it only ever accepted Sengled-signed images. Not a path.</p>
+      <h3>🛑 <code>--force-flash</code> on a non-ESP8266 module: <em>do not</em></h3>
+      <div class="danger mains">
+        <div class="co-hd">🛑 This is a brick, not an advanced option</div>
+        <p>
+          This is the single most dangerous thing you can do with these tools, and it is
+          <strong>one flag away from the happy path</strong>.
+        </p>
+        <p>
+          The tool gates flashing behind a <strong>two-entry allowlist</strong> —
+          <code>{"W31-N11", "W31-N15"}</code> — and <code>--force-flash</code> overrides that gate.
+          On a WF864 that means <strong>pushing an Xtensa binary at an ARM core.</strong>
+        </p>
+        <p class="oneline">
+          <strong>Why the built-in safety net will not save you:</strong> the shim&rsquo;s own guard —
+          <em>&ldquo;Not ESP8266 image slated for boot, avoiding brick&rdquo;</em> —
+          <strong>executes inside the shim</strong>. The shim is an ESP8266 binary. On an MX1290 it
+          never runs at all, so the one check that would have stopped you is the very thing that
+          can&rsquo;t execute. <strong>The guard only ever protects an ESP8266.</strong>
+        </p>
+        <p>
+          If the allowlist blocks your bulb, that is the tool <em>correctly</em> telling you your
+          module is not supported. Use <a href="#path1">Path&nbsp;1</a>.
+        </p>
+      </div>
     </section>
 
-    <section id="safety">
-      <h2><span class="sec-num">06</span>⚠ Mains safety &mdash; read before you touch anything</h2>
+    <!-- ══════════ PATH 4 ══════════ -->
+    <section id="path4">
+      <h2><span class="sec-num">4</span>UART + LibreTiny<span class="pill exp">⚠ Experimental</span></h2>
+      <div class="danger">
+        <div class="co-hd">🛑 This is speculative R&amp;D, not a procedure</div>
+        <p>
+          <strong>There is zero prior art. You would be first.</strong> If your module is
+          WF864&nbsp;/&nbsp;MX1290 and you still want open firmware, this is the only <em>currently
+          available</em> route — and it is a poor trade against <a href="#path1">Path&nbsp;1</a>,
+          which already gives you full local control for free.
+        </p>
+      </div>
+
+      <h3>💡 The better unlock: an MX1290 shim binary</h3>
+      <div class="ok">
+        <p>
+          Before you reach for a soldering iron, understand where the wall actually is.
+          <strong>Sengled&rsquo;s OTA transport is chip-agnostic</strong> — it is Sengled&rsquo;s own
+          updater, and it will happily deliver any payload to any of these bulbs.
+          <a href="#path3">Path&nbsp;3</a> is not blocked by the transport. <strong>It is blocked by
+          the absence of an MX1290/RTL8710BN build of the <code>Sengled-Rescue</code> shim.</strong>
+        </p>
+        <p>That reframes the whole problem:</p>
+        <ul>
+          <li>The missing piece is <strong>one port of an existing shim to a second
+            architecture</strong> — a tractable software task someone will eventually do.</li>
+          <li>It is a legitimate upstream feature request against
+            <a href="https://github.com/HamzaETTH/SengledTools"><code>SengledTools</code></a>, and it
+            would unlock <strong>solderless open firmware for this entire bulb family</strong> at
+            once.</li>
+          <li>Not something to <em>wait</em> on — but a far better place to spend effort than
+            repeated mains-voltage teardowns.</li>
+        </ul>
+        <p>
+          <strong>If you have RTL8710BN experience, that port is the highest-leverage contribution
+          available here.</strong>
+        </p>
+      </div>
+
+      <h3>What makes it theoretically possible</h3>
+      <ul>
+        <li>MXCHIP <strong>MX1290 is a Realtek RTL8710BN</strong> (ARM Cortex-M4F @ 125 MHz,
+          256 KB SRAM, 2 MB flash).</li>
+        <li>RTL8710BN <strong>is</strong> supported by <a href="https://docs.libretiny.eu">LibreTiny</a>
+          as the <code>realtek-ambz</code> platform, and flashable with <code>ltchiptool</code>. So
+          <strong>ESPHome-over-LibreTiny is a real target.</strong></li>
+        <li>One genuine comfort: on RTL8710BN <strong>the UART bootloader lives in ROM</strong>, so
+          per LibreTiny it <em>&ldquo;can&rsquo;t be software-bricked, even if you damage the
+          bootloader.&rdquo;</em></li>
+      </ul>
+
+      <h3>What makes it a bad idea anyway</h3>
+      <ul>
+        <li><strong>Zero prior art.</strong> No published teardown of anyone flashing a Sengled
+          WF864 bulb by any means.</li>
+        <li>MX1290 is reported to ship <em>&ldquo;potentially with flash encryption and log UART
+          turned off.&rdquo;</em> If flash encryption is on, this ends here.</li>
+        <li>No pin map exists. <code>UPK2ESPHome</code> — the tool that extracts GPIO mappings
+          automatically — <strong>only works on Tuya devices</strong>, so pin discovery is fully
+          manual.</li>
+        <li>You&rsquo;d be doing it <strong>once per bulb</strong>, with mains-voltage teardown each
+          time, for a capability Path 1 already gives you.</li>
+      </ul>
+
+      <div class="fix">
+        <div class="co-hd">🚧 Sources disagree — how I resolved it</div>
+        <p>
+          One research note claimed no LibreTiny port exists for MX1290, but LibreTiny&rsquo;s own
+          CPU list contains the entry <strong>&ldquo;MX1290 (RTL8710BN)&rdquo;</strong>. I&rsquo;ve
+          resolved toward the LibreTiny documentation: <strong>the silicon is supported; the
+          device is unexplored.</strong>
+        </p>
+      </div>
+
+      <h3 id="safety">⚠ Mains safety &mdash; read before opening any bulb</h3>
 
       <div class="danger mains">
         <div class="co-hd">🛑 Non-negotiable</div>
         <span class="shout">THE BULB MUST BE UNPLUGGED FROM MAINS. ALWAYS. NO EXCEPTIONS.</span>
-        <span class="shout">NEVER connect a USB serial adapter to the bulb while the driver board
-          is energized from AC.</span>
+        <span class="shout">NEVER connect a USB serial adapter to the bulb while the driver board is
+          energized from AC.</span>
 
         <p><strong>This is not boilerplate.</strong> A smart bulb&rsquo;s driver is a
           <strong>non-isolated (transformerless) switch-mode power supply</strong>. There is
@@ -714,7 +1179,7 @@ footer .fin{
           <li>The board&rsquo;s &ldquo;GND&rdquo; / 0&nbsp;V node is <strong>not earth</strong>. It
             is typically tied to the <strong>rectified mains negative rail</strong>, which sits at
             up to <strong>&minus;170&nbsp;V DC</strong> (US 120&nbsp;V AC peak) relative to neutral,
-            and can be at <strong>full line potential</strong> depending on socket polarization.</li>
+            and can be at <strong>full line potential</strong> depending on socket polarity.</li>
           <li>Your USB serial adapter&rsquo;s GND is bonded to your <strong>PC&rsquo;s USB
             ground</strong>, which on a desktop is bonded to <strong>earth through the PSU</strong>.</li>
           <li>Connecting the two while AC is applied puts <strong>mains potential across your
@@ -726,26 +1191,26 @@ footer .fin{
         <h4 style="color:var(--danger)">The rules, in order</h4>
         <ol>
           <li><strong>UNPLUG the bulb from mains.</strong> Remove it from the socket entirely. Do
-            not &ldquo;just switch it off at the wall&rdquo; &mdash; a switched neutral leaves the
+            not &ldquo;just switch it off at the wall&rdquo; — a switched-neutral fixture leaves the
             board live.</li>
           <li><strong>Wait ≥&nbsp;60 seconds</strong> after unplugging before touching the board.
             The bulk electrolytic capacitor (typically 6.8&ndash;22&nbsp;µF&nbsp;/&nbsp;400&nbsp;V)
             holds a lethal charge. <strong>Verify with a DMM in DC volts across the bulk cap: it
             must read &lt;&nbsp;5&nbsp;V</strong> before you touch anything. If it holds charge,
-            bleed it through a <strong>10&nbsp;kΩ&nbsp;/&nbsp;≥&nbsp;2&nbsp;W resistor</strong>
-            &mdash; not a screwdriver, which welds and shatters.</li>
+            bleed it through a <strong>10&nbsp;kΩ&nbsp;/&nbsp;≥&nbsp;2&nbsp;W resistor</strong> —
+            not a screwdriver, which welds and shatters.</li>
           <li><strong>Physically separate the LED/driver board from the RF module before
             flashing</strong> where possible, or at minimum confirm no AC path exists. Safest
             posture: the driver board is <strong>disconnected from any AC source and powered only by
             your bench 3.3&nbsp;V</strong>.</li>
-          <li><strong>The module is powered ONLY from your 3.3&nbsp;V source during flashing.</strong>
-            Never energize the driver&rsquo;s AC input and the serial adapter at the same time. Not
-            for &ldquo;just a second.&rdquo;</li>
+          <li><strong>The module is powered ONLY from your 3.3&nbsp;V source during
+            flashing.</strong> Never energize the driver&rsquo;s AC input and the serial adapter at
+            the same time. Not for &ldquo;just a second.&rdquo;</li>
           <li><strong>To observe the bulb running under mains</strong> (e.g. capturing UART logs
             from a live device) you need a <strong>mains isolation transformer</strong> <em>and</em>
             a <strong>galvanically isolated USB-serial adapter</strong> (opto/digital-isolated,
-            e.g. ADuM-based). Do not improvise this. For flashing you do not need it &mdash; just
-            keep AC off.</li>
+            e.g. ADuM-based). Do not improvise this. For flashing you do not need it — just keep
+            AC off.</li>
           <li><strong>Never touch the board with one hand on a grounded object.</strong> One-hand
             rule if AC has ever been near the bench.</li>
           <li><strong>Do not power a non-isolated driver board from a bench supply&rsquo;s AC-side
@@ -761,7 +1226,7 @@ footer .fin{
       <div class="warn">
         <div class="co-hd">⚠ 3.3 V logic only</div>
         <p>
-          Both ESP8266/ESP8285 and BK7231N are <strong>not 5&nbsp;V tolerant</strong>. If your
+          Both ESP8266/ESP8285 and RTL8710BN are <strong>not 5&nbsp;V tolerant</strong>. If your
           USB-serial adapter has a 5&nbsp;V&nbsp;/&nbsp;3.3&nbsp;V jumper, set it to
           <strong>3.3&nbsp;V and verify with a meter on the TX pin before connecting.</strong>
           <strong>Many cheap CH340 boards ship jumpered to 5&nbsp;V</strong> and will destroy the
@@ -770,212 +1235,352 @@ footer .fin{
       </div>
     </section>
 
-    <section id="pathb">
-      <h2><span class="sec-num">07</span>Path B &mdash; UART flash to ESPHome / Tasmota</h2>
-      <div class="danger">
-        <div class="co-hd">Prerequisite</div>
+    <!-- ══════════ 07 RULED OUT ══════════ -->
+    <section id="ruledout">
+      <h2><span class="sec-num">07</span>Ruled out: the Tuya exploits<span class="pill out">Reference</span></h2>
+      <p>
+        Everyone tries these first. Here is precisely why neither can work &mdash; and note the
+        reasoning is <strong>narrower than you might expect</strong>.
+      </p>
+
+      <h3><code>tuya-cloudcutter</code> — disqualified by <strong>vendor</strong>, not by silicon</h3>
+
+      <div class="fix">
+        <div class="co-hd">📝 Correction to an earlier revision</div>
         <p>
-          Only attempt this after confirming an <strong>ESP8266EX (<code>WF863</code>)</strong>
-          module, and only after reading <a href="#safety">§06 Mains safety</a> in full. On
-          MX1290&nbsp;/&nbsp;EMW3091 hardware there is no community firmware to flash and you will
-          simply brick the bulb.
+          An earlier revision of this document claimed cloudcutter was disqualified on <em>both</em>
+          silicon and vendor grounds. <strong>The silicon half was wrong.</strong> Cloudcutter&rsquo;s
+          supported list includes <strong>Realtek RTL8710BN</strong> — which is exactly what MX1290
+          is. The disqualification is real, but it rests on <strong>one</strong> reason, not two.
         </p>
       </div>
 
-      <h3>Wiring <small>(ESP8266EX)</small></h3>
-      <div class="pins">
-        <div class="pin"><span class="from">3V3</span><span class="arrow">→</span><span class="to">VCC</span></div>
-        <div class="pin"><span class="from">GND</span><span class="arrow">→</span><span class="to">GND</span></div>
-        <div class="pin"><span class="from">TX</span><span class="arrow">→</span><span class="to">RX</span></div>
-        <div class="pin"><span class="from">RX</span><span class="arrow">→</span><span class="to">TX</span></div>
-        <div class="pin special" style="grid-column:1/-1">
-          <span class="to">IO0 → GND</span><span class="arrow">·</span>
-          <span class="from" style="min-width:0">to enter the bootloader (release after power-up)</span>
+      <ul>
+        <li><strong>The reason it fails: wrong vendor.</strong> Cloudcutter attacks the
+          <strong>Tuya SDK&rsquo;s</strong> cloud-activation handshake. Sengled firmware is
+          Sengled&rsquo;s own — its own cloud, its own MQTT, its own app. There is no Tuya
+          activation flow to impersonate. <em>Even where the chip is in scope, the firmware is
+          not.</em></li>
+        <li><strong>It would be moot regardless.</strong> RTL8710BN is only exploitable running
+          <strong>unpatched Tuya</strong> firmware, and <strong>Tuya patched the SDK in February
+          2022.</strong></li>
+      </ul>
+
+      <details>
+        <summary>Cloudcutter reference details, for when a genuinely Tuya device shows up</summary>
+        <div class="det-body">
+          <ul>
+            <li><strong>Supported chips:</strong> BK7231T, BK7231N (unpatched), RTL8710BN
+              (unpatched, SDK 2.0.0 excluded), RTL8720CF (caveats). <strong>Not</strong>
+              ESP8266/ESP8285.</li>
+            <li><strong>Known-patched BK7231N firmware:</strong> 1.1.2, 1.1.12, 1.1.15, 1.3.3,
+              1.3.8, 1.3.10, 1.5.10, 2.0.15.</li>
+            <li><strong>Host requirements:</strong> Linux + NetworkManager + Docker + sudo, and a
+              <strong>secondary WiFi adapter whose driver supports AP mode via <code>nmcli</code></strong>
+              (keep internet on Ethernet). No chipset allow-list is published; in practice
+              mac80211-native drivers (<code>ath9k</code>, <code>ath9k_htc</code>, <code>mt76</code>,
+              <code>rt2800usb</code>, <code>brcmfmac</code>) are the safe class, out-of-tree Realtek
+              <code>rtl8812au</code>/<code>8821au</code> DKMS the flaky class.</li>
+            <li>Requires a device <strong>profile</strong> to already exist for your exact device +
+              firmware version.</li>
+          </ul>
         </div>
+      </details>
+
+      <h3><code>tuya-convert</code> — deprecated <em>and</em> inapplicable</h3>
+      <p>
+        Patched by Tuya years ago;
+        <a href="https://github.com/ct-Open-Source/tuya-convert"><code>ct-Open-Source/tuya-convert</code></a>
+        is archived and unmaintained. It only ever converted old unpatched <strong>Tuya</strong>
+        stock. Moot here regardless — not a Tuya device.
+      </p>
+
+      <h3>Sengled&rsquo;s own OTA — <em>this one actually works</em></h3>
+      <p>
+        Worth stating plainly, because it&rsquo;s the exception that makes
+        <a href="#path3">Path&nbsp;3</a> possible: <strong>Sengled&rsquo;s OTA mechanism is
+        exploitable.</strong> <code>SengledTools</code> stands up a local MQTT broker and HTTP
+        server, impersonates the Sengled cloud, and pushes an arbitrary image. It is constrained by
+        <strong>module</strong> (ESP8266EX only) rather than by firmware version.
+      </p>
+
+      <div class="ok">
+        <div class="co-hd">The corrected bottom line</div>
+        <p>
+          <em>&ldquo;There is no wireless way to flash this bulb&rdquo;</em> is <strong>false</strong>.
+          On WF863 there is, and it&rsquo;s the recommended way. On WF864 there is no known way to
+          flash it at all, wireless or wired — which is why
+          <a href="#path1">Path&nbsp;1</a> is the answer rather than a consolation prize.
+        </p>
       </div>
-      <p>
-        Notes carried over from the Tasmota template for the ESP8266 sibling
-        (<code>W31-N15</code>): flashing method is <strong>&ldquo;USB to Serial&rdquo;</strong>, and
-        <em>&ldquo;programming pins hidden behind capacitors, you may need to fully remove the module
-        to flash.&rdquo;</em> <strong>Budget for desoldering the module.</strong>
-      </p>
-
-      <h3>Flash</h3>
-      <pre><code><span class="cmt"># Read a full backup FIRST. Never skip this — it is your only way back.</span>
-esptool.py --port /dev/ttyUSB0 --baud 115200 \
-  read_flash 0x0 0x400000 sengled-br30-stock.bin
-
-<span class="cmt"># Then write your firmware</span>
-esptool.py --port /dev/ttyUSB0 --baud 115200 \
-  write_flash 0x0 firmware.bin</code></pre>
-      <p>
-        Keep backups <strong>out of git</strong> &mdash; a stock dump contains the bulb&rsquo;s
-        provisioned WiFi credentials, device keys, and MAC. The repo&rsquo;s
-        <code>.gitignore</code> already excludes <code>*.bin</code> and <code>*_backup*</code>.
-      </p>
-
-      <h3>Tasmota template <small>(RGBW sibling W31-N15 &mdash; starting point, verify per board)</small></h3>
-      <pre><code>{"NAME":"Sengled RGBW","GPIO":[0,0,0,0,0,0,0,0,417,416,419,418,0,0],"FLAG":0,"BASE":18}</code></pre>
-      <p>🚧 <em>An RGBCW (5-channel) template and the confirmed BR30 GPIO map for this ASIN are
-        pending hardware confirmation.</em></p>
-
-      <h3>Alternative: Sengled-Rescue shim</h3>
-      <p>
-        <a href="https://github.com/HamzaETTH/SengledTools">SengledTools</a> also ships a shim
-        bootloader called <strong>Sengled-Rescue</strong> that can chain-load
-        Tasmota&nbsp;/&nbsp;ESPHome&nbsp;/&nbsp;WLED. Per its own compatibility matrix,
-        <em>&ldquo;flashing only works with ESP8266EX-based modules (WF863)&rdquo;</em> &mdash; the
-        same constraint as above, but potentially with less soldering.
-        🚧 <em>Being evaluated.</em>
-      </p>
     </section>
 
+    <!-- ══════════ 08 HA ══════════ -->
     <section id="ha">
       <h2><span class="sec-num">08</span>Home Assistant end state</h2>
       <p>
-        <strong>Target:</strong> each bulb appears in Home Assistant as a single <code>light</code>
-        entity supporting on/off, brightness, RGB color, and color temperature &mdash; with
-        <strong>zero outbound internet traffic</strong>.
+        <strong>Target:</strong> each bulb appears as a single <code>light</code> entity with on/off,
+        brightness, and color &mdash; and <strong>zero outbound internet traffic</strong>.
       </p>
 
-      <h3>Path A end state</h3>
-      <p>
-        Bulbs speak MQTT to your local broker via the <code>ha-sengled-local</code> add-on; the
-        integration exposes them as <code>light.*</code> entities. Discovery is handled by the
-        integration.
-      </p>
-
-      <h3>Path B end state <small>(ESPHome, RGBCW)</small></h3>
-      <p>Skeleton config &mdash; adapt pin assignments once the board is confirmed.</p>
-      <div class="warn">
-        <div class="co-hd">Note the placeholders</div>
-        <p>Every credential is a <code>!secret</code> reference. <strong>Never commit real
-          SSIDs, passwords, or keys</strong> &mdash; and if one is ever staged before a repo&rsquo;s
-          first push, <strong>amend it out rather than fixing it forward</strong>.</p>
+      <h3>Path 1 / 2 end state</h3>
+      <div class="tscroll">
+        <table>
+          <thead><tr><th></th><th>Path 1 (<code>sengled_udp</code>)</th><th>Path 2 (<code>ha-sengled-local</code>)</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Transport</strong></td><td>UDP 9080, direct to bulb</td><td>MQTT via local server</td></tr>
+            <tr><td><strong>Extra services</strong></td><td class="yes">none</td><td>add-on + Mosquitto</td></tr>
+            <tr><td><strong>Firmware</strong></td><td>stock</td><td>stock</td></tr>
+            <tr><td><strong>Entities</strong></td><td><code>light.*</code> per bulb</td><td><code>light.*</code> per bulb</td></tr>
+          </tbody>
+        </table>
       </div>
-      <pre><code>esphome:
-  name: bulb-br30-01
-  friendly_name: BR30 Bulb 01
+
+      <h3>Path 3 end state (ESPHome on ESP8266)</h3>
+      <p>
+        Recommended over Tasmota <strong>specifically when you have several bulbs</strong>:
+        ESPHome&rsquo;s encrypted native API needs no broker and auto-discovers, and
+        <code>substitutions</code> + <code>packages</code> means <strong>one canonical YAML plus
+        3-line wrappers</strong> instead of hand-configured web UIs.
+      </p>
+
+      <div class="warn">
+        <div class="co-hd">⚠ Two corrections to the obvious approach</div>
+        <p>
+          <strong>It is probably 4-channel RGBW, not 5-channel RGBCW.</strong> The only Sengled WiFi
+          color bulb in the Tasmota template DB is the W31-N15 — <strong>4 channels, one
+          white</strong>. A bulb marketed as &ldquo;color changing&rdquo; can fake color temperature
+          by RGB mixing, so the marketing copy does <em>not</em> prove a 5th channel exists.
+          <strong>Count the channels before writing the YAML.</strong>
+        </p>
+        <p>
+          <strong>It might not be direct PWM at all.</strong> Many bulbs use a 2-wire (clock+data)
+          constant-current LED driver IC. A Hackaday teardown of a Sengled A19 found an
+          <strong>SM1533E</strong> 3-channel driver — so Sengled does ship driver ICs. <em>If you
+          see a small 8-pin IC near the LED pads with only two traces back to the module, the PWM
+          config below is the wrong shape</em> — use <code>sm2135</code> / <code>bp5758d</code> /
+          <code>bp1658cj</code> / <code>my9231</code> instead.
+        </p>
+      </div>
+
+      <pre><code>substitutions:
+  device_name: bulb-br30-1
+  friendly_name: "BR30 Bulb 1"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
 
 esp8266:
-  board: esp01_1m
+  board: esp8285              <span class="cmt"># or esp01_1m</span>
+  restore_from_flash: true
 
-wifi:
-  ssid: !secret wifi_ssid          <span class="cmt"># -> secrets.yaml, never committed</span>
-  password: !secret wifi_password
+logger:
+  baud_rate: 0                <span class="cmt"># keeps the binary small — see the OTA trap below</span>
 
 api:
   encryption:
-    key: !secret api_key
+    key: !secret api_encryption_key
 ota:
   - platform: esphome
     password: !secret ota_password
-logger:
 
-<span class="cmt"># 🚧 GPIO assignments pending hardware confirmation</span>
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: ${device_name}-ap   <span class="cmt"># a bulb that can't reach WiFi must STILL make light</span>
+captive_portal:
+
+<span class="cmt"># Verified W31-N15 pinout — treat as the starting hypothesis, confirm per bulb</span>
 output:
-  - { platform: esp8266_pwm, id: ch_red,   pin: GPIO4 }
-  - { platform: esp8266_pwm, id: ch_green, pin: GPIO12 }
-  - { platform: esp8266_pwm, id: ch_blue,  pin: GPIO14 }
-  - { platform: esp8266_pwm, id: ch_cw,    pin: GPIO5 }
-  - { platform: esp8266_pwm, id: ch_ww,    pin: GPIO13 }
+  - { platform: esp8266_pwm, id: pwm_red,   pin: GPIO13, frequency: 1000 Hz }
+  - { platform: esp8266_pwm, id: pwm_green, pin: GPIO12, frequency: 1000 Hz }
+  - { platform: esp8266_pwm, id: pwm_blue,  pin: GPIO15, frequency: 1000 Hz }
+  - { platform: esp8266_pwm, id: pwm_white, pin: GPIO14, frequency: 1000 Hz }
 
 light:
-  - platform: rgbww
-    name: "BR30 Bulb 01"
-    red: ch_red
-    green: ch_green
-    blue: ch_blue
-    cold_white: ch_cw
-    warm_white: ch_ww
-    cold_white_color_temperature: 6500K
-    warm_white_color_temperature: 2700K</code></pre>
+  - platform: rgbw
+    id: bulb
+    name: None
+    red: pwm_red
+    green: pwm_green
+    blue: pwm_blue
+    white: pwm_white
+    color_interlock: true       <span class="cmt"># RGB and white never on together</span>
+    restore_mode: ALWAYS_ON     <span class="cmt"># CRITICAL: wall switch on ⇒ light on</span>
+    default_transition_length: 400ms</code></pre>
+
+      <div class="ok">
+        <p>
+          <strong><code>restore_mode: ALWAYS_ON</code> is the single most important line here.</strong>
+          ESPHome defaults to restoring the previous state — and a bulb that boots &ldquo;off&rdquo;
+          when someone flips the wall switch reads as a <em>dead bulb</em> to the rest of the
+          household.
+        </p>
+      </div>
+
+      <details>
+        <summary>Discovering the real pin map (if the W31-N15 mapping doesn&rsquo;t hold)</summary>
+        <div class="det-body">
+          <p>
+            Flash a throwaway prober exposing every plausible GPIO as its own dimmable entity, then
+            click each one and write down which LED lights.
+          </p>
+          <pre><code>output:
+  - {platform: esp8266_pwm, id: p4,  pin: GPIO4}
+  - {platform: esp8266_pwm, id: p5,  pin: GPIO5}
+  - {platform: esp8266_pwm, id: p12, pin: GPIO12}
+  - {platform: esp8266_pwm, id: p13, pin: GPIO13}
+  - {platform: esp8266_pwm, id: p14, pin: GPIO14}
+  - {platform: esp8266_pwm, id: p15, pin: GPIO15}
+
+light:
+  - {platform: monochromatic, name: "probe GPIO4",  output: p4}
+  - {platform: monochromatic, name: "probe GPIO5",  output: p5}
+  - {platform: monochromatic, name: "probe GPIO12", output: p12}
+  - {platform: monochromatic, name: "probe GPIO13", output: p13}
+  - {platform: monochromatic, name: "probe GPIO14", output: p14}
+  - {platform: monochromatic, name: "probe GPIO15", output: p15}</code></pre>
+          <p>
+            Bring one up at a time at ~30% and note the color. <strong>The channel count you find
+            settles the RGBW-vs-RGBCW question:</strong> one white channel ⇒ <code>rgbw</code>; two
+            whites of visibly different temperature ⇒ <code>rgbww</code>. <strong>If no GPIO lights
+            anything, that&rsquo;s the positive signal for a driver IC.</strong>
+          </p>
+        </div>
+      </details>
+
+      <div class="danger">
+        <div class="co-hd">⚠ The 1 MB-flash OTA trap (verified — and it will bite)</div>
+        <p>
+          ESP8285 has 1 MB flash, and ESPHome OTA needs the <em>new</em> image to fit alongside the
+          running one. Once a build exceeds roughly <strong>~500 KB</strong>, OTA fails with
+          <em>&ldquo;ESP does not have enough space to store OTA file&rdquo;</em>. A
+          <code>wifi</code> + <code>api</code> + <code>ota</code> + <code>light</code> config fits
+          comfortably; people blow the budget by adding <code>web_server</code>, extra sensors, or
+          <code>improv</code>. <strong>Keep the config lean and keep
+          <code>logger: baud_rate: 0</code>.</strong> If you do exceed it, the escape hatch is to
+          OTA a <em>minimal</em> config first, then OTA the full one — not disassembly.
+        </p>
+      </div>
+
+      <h3>What HA shows you</h3>
+      <ul>
+        <li><strong>Discovery</strong> via mDNS; entities are <code>light.br30_bulb_1</code> onward.</li>
+        <li><strong><code>rgbw</code>:</strong> brightness + color wheel + white slider.
+          <code>supported_color_modes: [rgbw]</code> — <strong>no color-temperature slider</strong>,
+          because with one white LED there is no CT to tune.</li>
+        <li><strong><code>rgbww</code>:</strong> adds a real color-temp slider bounded by your
+          declared Kelvin values.</li>
+        <li><strong>Device page</strong> exposes an <strong>Update entity</strong> — new ESPHome
+          builds appear as an HA update you push OTA from the UI.</li>
+        <li><strong>Fully local:</strong> encrypted native API over LAN; works with WAN down.</li>
+      </ul>
+
+      <h3>Replicating across a batch</h3>
+      <div class="tscroll">
+        <table>
+          <thead><tr><th>Your module</th><th>Workflow</th></tr></thead>
+          <tbody>
+            <tr><td><strong>WF863</strong></td><td>Convert <strong>every bulb over the air</strong> — no disassembly at all (Path 3).</td></tr>
+            <tr><td><strong>WF864</strong></td><td>Path 1 for every bulb, ~5 minutes each, no hardware work.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn">
+        <div class="co-hd">⚠ &ldquo;Flash one by UART, then OTA the rest&rdquo; does not work</div>
+        <p>
+          If you ever do need wired flashing: OTA requires ESPHome to <em>already be running</em>,
+          and with cloudcutter off the table there is no wireless way to get the first image on.
+          What OTA saves is <strong>iteration</strong>, not the first flash. Nail the pin map once on
+          the bulb that&rsquo;s already open, then flash the rest with the finished config.
+        </p>
+      </div>
+
+      <p>Per-bulb wrappers, once the shared config is proven:</p>
+      <pre><code>substitutions:
+  device_name: bulb-br30-3
+  friendly_name: "BR30 Bulb 3"
+packages:
+  common: !include common/sengled-br30.yaml</code></pre>
 
       <p>Your git-ignored <code>secrets.yaml</code>:</p>
       <pre><code>wifi_ssid: "YOUR_WIFI_SSID"
 wifi_password: "YOUR_WIFI_PASSWORD"</code></pre>
-
-      <h3>Replicating across a batch</h3>
-      <div class="ok">
-        <div class="co-hd">Solder once, not eight times</div>
-        <p>
-          Flash one bulb, confirm the GPIO map and color response, <strong>then</strong> template
-          the YAML per bulb (<code>bulb-br30-01</code>&hellip;<code>-08</code>) and change only the
-          name. With ESPHome, bulbs 2&ndash;8 can take the config over <strong>OTA</strong> once the
-          first serial flash has proven the map.
-        </p>
-      </div>
     </section>
 
+    <!-- ══════════ 09 CREDITS ══════════ -->
     <section id="credits">
       <h2><span class="sec-num">09</span>Credits &amp; prior art</h2>
       <p>
-        None of this hardware would be openable without these projects. <strong>Referenced by URL
-        only &mdash; nothing is vendored into this repo.</strong>
+        None of this is my discovery. <strong>Referenced by URL only — nothing is vendored
+        here.</strong>
       </p>
 
-      <h3>Sengled-specific</h3>
+      <h3>The projects that actually make this possible</h3>
       <div class="links">
         <a class="lk key" href="https://github.com/HamzaETTH/SengledTools">
           <span class="repo">HamzaETTH/SengledTools</span>
-          <span class="what">Sengled UDP/MQTT CLI, local HA integration, and the Sengled-Rescue
-            flashing shim. <strong>The single most important source for this hardware.</strong></span>
+          <span class="what">The only serious prior art for these bulbs. Local WiFi onboarding, the
+            <code>sengled_udp</code> HA integration, and the <code>Sengled-Rescue</code> flashing
+            shim. <strong>Path 1 and Path 3 are both this project&rsquo;s work.</strong></span>
         </a>
         <a class="lk key" href="https://github.com/FalconFour/ha-sengled-local">
           <span class="repo">FalconFour/ha-sengled-local</span>
-          <span class="what">Local replacement Sengled server as a Home Assistant add-on +
-            integration.</span>
+          <span class="what">Local replacement Sengled MQTT server as an HA add-on + integration.
+            Path 2.</span>
+        </a>
+        <a class="lk" href="https://docs.libretiny.eu">
+          <span class="repo">LibreTiny · ltchiptool</span>
+          <span class="what">Realtek <code>realtek-ambz</code> support — the only reason Path 4 is
+            even theoretically on the map.</span>
+        </a>
+        <a class="lk" href="https://github.com/blakadder/templates">
+          <span class="repo">blakadder/templates</span>
+          <span class="what">Tasmota template DB — source of the verified W31-N15 pinout.</span>
+        </a>
+        <a class="lk" href="https://esphome.io">
+          <span class="repo">ESPHome</span>
+          <span class="what">The firmware this lands in on the flashing paths.</span>
+        </a>
+        <a class="lk" href="https://www.home-assistant.io">
+          <span class="repo">Home Assistant</span>
+          <span class="what">Where every path terminates.</span>
         </a>
       </div>
 
-      <h3>General smart-bulb liberation <small>(context &mdash; mostly <em>not</em> applicable to Sengled)</small></h3>
-      <div class="links">
-        <a class="lk" href="https://github.com/ct-Open-Source/tuya-convert">
-          <span class="repo">ct-Open-Source/tuya-convert</span>
-          <span class="what">The original OTA Tuya reflash.</span></a>
-        <a class="lk" href="https://github.com/tuya-cloudcutter/tuya-cloudcutter">
-          <span class="repo">tuya-cloudcutter/tuya-cloudcutter</span>
-          <span class="what">Beken/Realtek OTA exploit chain.</span></a>
-        <a class="lk" href="https://github.com/tuya-cloudcutter/tuya-cloudcutter.github.io">
-          <span class="repo">tuya-cloudcutter.github.io</span>
-          <span class="what">Device database.</span></a>
-        <a class="lk" href="https://github.com/tuya-cloudcutter/bk7231tools">
-          <span class="repo">tuya-cloudcutter/bk7231tools</span>
-          <span class="what">Beken flash dump &amp; analysis.</span></a>
-        <a class="lk" href="https://github.com/libretiny-eu/libretiny">
-          <span class="repo">libretiny-eu/libretiny</span>
-          <span class="what">Arduino/ESPHome support for BK72xx &amp; RTL87xx.</span></a>
-        <a class="lk" href="https://github.com/libretiny-eu/ltchiptool">
-          <span class="repo">libretiny-eu/ltchiptool</span>
-          <span class="what">Flashing tool for those chips.</span></a>
-        <a class="lk" href="https://github.com/openshwprojects/OpenBK7231T_App">
-          <span class="repo">openshwprojects/OpenBK7231T_App</span>
-          <span class="what">OpenBeken firmware.</span></a>
-        <a class="lk" href="https://github.com/blakadder/templates">
-          <span class="repo">blakadder/templates</span>
-          <span class="what">Tasmota device template database — source of the W31-N15 template
-            above.</span></a>
-        <a class="lk" href="https://esphome.io">
-          <span class="repo">esphome.io</span>
-          <span class="what">ESPHome.</span></a>
-        <a class="lk" href="https://tasmota.github.io/docs/">
-          <span class="repo">tasmota.github.io/docs</span>
-          <span class="what">Tasmota documentation.</span></a>
+      <h3>Context projects <small>(not applicable to Sengled — documented so you don&rsquo;t chase them)</small></h3>
+      <p class="inline-links">
+        <a href="https://github.com/tuya-cloudcutter/tuya-cloudcutter"><code>tuya-cloudcutter</code></a> ·
+        <a href="https://github.com/ct-Open-Source/tuya-convert"><code>tuya-convert</code></a> (archived) ·
+        <a href="https://github.com/tuya-cloudcutter/tuya-cloudcutter.github.io">device DB</a> ·
+        <a href="https://github.com/tuya-cloudcutter/bk7231tools"><code>bk7231tools</code></a> ·
+        <a href="https://github.com/openshwprojects/OpenBK7231T_App"><code>OpenBK7231T_App</code></a>
+      </p>
+      <div class="note">
+        <p>
+          <strong>Tasmota has no BK7231 support at all</strong> — LibreTiny ported ESPHome to Beken;
+          nobody ported Tasmota. OpenBeken describes itself as a &ldquo;Tasmota/ESPHome
+          replacement&rdquo; precisely because Tasmota doesn&rsquo;t run there. Irrelevant to this
+          bulb, but it&rsquo;s a common misconception.
+        </p>
       </div>
 
       <h3>Research notes</h3>
       <p>
-        Raw working notes, with sourcing and confidence levels, live in the repository under
+        Raw working notes with sourcing and confidence levels live in
         <a href="https://github.com/jphein/sengled-ffs-br30/tree/main/research"><code>research/</code></a>:
       </p>
       <div class="tscroll">
         <table>
           <thead><tr><th>File</th><th>Topic</th></tr></thead>
           <tbody>
-            <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/01-chip-id.md"><code>01-chip-id.md</code></a></td><td>Chip / module identification, FCC records</td></tr>
-            <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/02-ota-path.md"><code>02-ota-path.md</code></a></td><td>Whether any no-solder OTA path exists</td></tr>
-            <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/03-uart-flash.md"><code>03-uart-flash.md</code></a></td><td>Serial flashing procedure + mains safety</td></tr>
-            <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/04-ha-endstate.md"><code>04-ha-endstate.md</code></a></td><td>Firmware choice + Home Assistant end state</td></tr>
+            <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/01-chip-id.md"><code>01-chip-id.md</code></a></td><td>Module ID from FCC exhibit photos, the antenna tell, model→module map</td></tr>
+            <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/02-ota-path.md"><code>02-ota-path.md</code></a></td><td>The no-solder verdict, SengledTools capability matrix, W12-N15 identification</td></tr>
+            <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/03-uart-flash.md"><code>03-uart-flash.md</code></a></td><td>Serial flashing procedures + full mains-safety treatment</td></tr>
+            <tr><td><a href="https://github.com/jphein/sengled-ffs-br30/blob/main/research/04-ha-endstate.md"><code>04-ha-endstate.md</code></a></td><td>Firmware choice per chip, ESPHome configs, HA end state</td></tr>
           </tbody>
         </table>
       </div>
@@ -991,13 +1596,18 @@ wifi_password: "YOUR_WIFI_PASSWORD"</code></pre>
       voltages</strong>, destroys the bulb&rsquo;s thermal design and any warranty, and may violate
       local electrical regulations. Flashing third-party firmware can permanently brick the device.
       <strong>You do this at your own risk.</strong> The authors accept no liability for damage,
-      injury, or death. If you are not confident reading <a href="#safety">§06</a> and following
-      every rule in it, <a href="#patha">use Path&nbsp;A</a> &mdash; it requires no teardown at all.
+      injury, or death.
+    </p>
+    <p class="disc">
+      <strong>If you are not confident reading the mains-safety rules and following every one of
+      them, use <a href="#path1">Path&nbsp;1</a></strong> — it requires no teardown, no soldering,
+      and never exposes you to mains at all. For almost everyone, it is also simply the better
+      answer.
     </p>
     <div class="fin">
       <span>MIT © JP (<a href="https://github.com/jphein">@jphein</a>)</span>
       <span><a href="https://github.com/jphein/sengled-ffs-br30">sengled-ffs-br30</a></span>
-      <span>ASIN B097CYHRZJ</span>
+      <span>ASIN B097CYHRZJ · W12-N15</span>
     </div>
   </div>
 </footer>

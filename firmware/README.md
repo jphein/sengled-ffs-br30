@@ -3,6 +3,13 @@
 This directory is where **your** device-specific files live. Almost everything that lands here is
 deliberately excluded by [`../.gitignore`](../.gitignore) and **must never be committed**.
 
+> ### 🛈 You probably don't need this directory at all
+> The **recommended path** ([Path 1](../README.md#path-1--solderless-local-control-recommended))
+> involves **no flashing** — the bulb keeps its stock firmware and you control it over UDP. This
+> directory only matters if you're on [Path 3](../README.md#path-3--solderless-ota-to-open-firmware)
+> (solderless OTA, ESP8266/WF863 only) or [Path 4](../README.md#path-4--uart--libretiny-experimental)
+> (experimental UART).
+
 ## What goes here
 
 | File | Committed? | Why |
@@ -15,13 +22,19 @@ deliberately excluded by [`../.gitignore`](../.gitignore) and **must never be co
 
 ## Take a backup first. Always.
 
-The stock image is your **only** way back to a working vendor firmware. Read it before you write
-anything:
+The stock image is your **only** way back to a working vendor firmware.
+
+**On Path 3 (solderless OTA)** the `Sengled-Rescue` web UI at `http://192.168.4.1` does this for
+you — choose *full → backup selected* **before** you flash anything. Save the download here.
+
+**On Path 4 (UART)**, read it yourself before you write:
 
 ```bash
 esptool.py --port /dev/ttyUSB0 --baud 115200 \
   read_flash 0x0 0x400000 firmware/sengled-br30-stock.bin
 ```
+
+*(That command is for ESP8266. On RTL8710BN/MX1290 the tool is `ltchiptool`, not `esptool.py`.)*
 
 Verify the dump is plausible before trusting it — a 4 MB file of `0xFF` means the read failed:
 
