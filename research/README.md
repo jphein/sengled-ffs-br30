@@ -8,9 +8,10 @@ each claim rather than taking the summary on faith.
 |---|---|---|
 | [`01-chip-id.md`](01-chip-id.md) | Module identification | Module is `WF864SM-M6` = MXCHIP MX1290 = **Realtek RTL8710BN**. The `BOOT`-vs-`IO0` pad is the sharpest discriminator; the antenna is the fastest. Includes the verified UART2 procedure. |
 | [`02-ota-path.md`](02-ota-path.md) | Is there a no-solder path? | **Yes, and it's better than flashing.** SengledTools provisions locally; `sengled_udp` drives the bulb from HA over UDP 9080. Also documents the `--force-flash` brick hazard. |
-| [`03-uart-flash.md`](03-uart-flash.md) | Serial flashing procedures | Full mains-safety treatment. The driver is a **non-isolated SMPS**, so board "ground" can sit at line potential. Adapter ON ⇒ mains OFF, always. |
+| [`03-uart-flash.md`](03-uart-flash.md) | RTL8710BN UART procedure | Rewritten for the confirmed silicon: download-mode entry, `ltchiptool`, building ESPHome for `rtl87xx`, and the full mains-safety treatment. |
 | [`05-ha-features.md`](05-ha-features.md) | Feature → HA entity matrix | The full UDP capability surface, what's MQTT-only, the protocol caveats that shape the design, and a smoke-test plan. |
 | [`06-our-ha-app.md`](06-our-ha-app.md) | The replacement-cloud add-on | **The bulb persists absolute URLs baked in at pairing time** — pair from the wrong subnet and only re-pairing fixes it. Also: effects/gradient/groups are reachable over MQTT, so they were missing from the *pipe*, not the bulb. |
+| [`07-w12n15-join-debug.md`](07-w12n15-join-debug.md) | The join-failure investigation | **The wizard's success messages are false positives** (`except socket.timeout: pass` falls through to `success()`). Then the network evidence: association completes, DHCP dies at OFFER→REQUEST. |
 
 ## Where the notes and the writeup diverge
 
@@ -27,6 +28,21 @@ they contradict each other, the main README states the resolution:
 | `03` documents ESP8285 and Beken procedures | Neither matches the hardware. The applicable route is RTL8710BN + `ltchiptool` + `realtek-ambz`. |
 
 ## Field-test reality check
+
+**The symptom description changed three times, and each change killed hypotheses.** Worth reading in
+order if you want the actual epistemics:
+
+1. *"Bulb accepts credentials but never joins"* → suggested tool-side incompatibility (RC4 key or
+   schema) or AP-side association failure. `07` §6–§7 works through both.
+2. *"The wizard's success messages prove nothing"* (`07` §1–§4) → correct about the code, but it turned
+   out the credentials really were accepted, so this was a **methodology** finding rather than the
+   fault.
+3. *"Association completes; DHCP dies at OFFER→REQUEST"* → the real localisation, and it voided every
+   earlier candidate at once.
+
+`07` also contains an explicit **⛔ do-not-run** finding: the "build a minimal test SSID" experiment
+is pointless here, because the SSID already *is* that minimal configuration across all nine APs. That
+kind of negative result is as valuable as a fix and is why it's published.
 
 `06` was written before the add-on met a bulb, and its §5 ranked *"whether the W12-N15 / RTL8710BN
 bulb works with SengledTools at all"* as **risk #1**. That risk materialised: provisioning does not

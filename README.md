@@ -15,10 +15,11 @@ no vendor cloud, no account, no app, integrated into Home Assistant.
 > [Path 1](#path-1--solderless-local-control), and it is **confirmed working on the ESP8266 Sengled
 > models** (`W31-N11`, `W31-N15`).
 >
-> **On our RTL8710BN hardware, provisioning stalls:** the bulb accepts the WiFi credentials, never
-> joins the network, takes no DHCP lease, and reverts to its own SoftAP.
-> **[That open issue is documented in full](#-open-issue-provisioning-does-not-complete-on-w12-n15)**,
-> including what we ruled out.
+> **On our RTL8710BN hardware it stops at DHCP.** The bulb provisions fine and **associates fine** —
+> the WPA2 4-way handshake completes — then its embedded DHCP client receives a valid offer and
+> **never sends a REQUEST**, so it never gets an IP and reverts to its SoftAP.
+> **[The open issue is documented in full](#-open-issue-the-bulb-joins-wifi-but-never-gets-an-ip)**,
+> including the three hypotheses this killed along the way.
 >
 > The [local replacement-cloud add-on](#5-the-local-replacement-cloud-add-on) *does* work
 > structurally, and it's the correct architecture on a segmented network. So this repo is currently
@@ -32,15 +33,17 @@ no vendor cloud, no account, no app, integrated into Home Assistant.
 | Hardware identification | ✅ **Confirmed** — `WF864SM-M6` / MX1290 / RTL8710BN, three independent ways |
 | Not a Tuya device | ✅ **Confirmed** — Tuya exploits ruled out |
 | Path 1 on **ESP8266** models (`W31-*`) | ✅ Works — upstream-supported |
-| **Path 1 on W12-N15 (this bulb)** | ❌ **Provisioning does not complete.** [Under investigation](#-open-issue-provisioning-does-not-complete-on-w12-n15) |
+| Provisioning + association on W12-N15 | ✅ **Both work** — credentials accepted, WPA2 handshake completes |
+| **DHCP on W12-N15** | ❌ **Fails.** Valid OFFER received, `REQUEST` never sent, no lease. [Under investigation](#-open-issue-the-bulb-joins-wifi-but-never-gets-an-ip) |
+| Option 119 removal as a fix | ❌ Tried, **did not work** — nor did a minimal options-3/6 offer |
 | Local replacement-cloud add-on | ✅ **Builds and runs on HA**, serves both endpoints + MQTT broker |
 | Add-on ↔ bulb session | 🚧 Untested — blocked on provisioning |
 | Extended HA entity set (22/bulb) | 🚧 Written, not smoke-tested on hardware |
-| Wired UART flashing (Path 4) | 🚧 Toolchain confirmed, zero prior art on this module |
+| Wired UART flashing (Path 4) | 🚧 Toolchain confirmed, **increasingly likely the real path** — turnkey runbook in progress |
 
 **If you have a `W31-N11` or `W31-N15`**, this guide should work end to end.
-**If you have a `W12-N15` like ours**, expect to hit the open issue — and please tell us if you get
-past it.
+**If you have a `W12-N15` like ours**, expect the bulb to join your WiFi and then fail to get an
+IP — and please tell us if you get past it.
 
 ---
 
@@ -52,7 +55,7 @@ past it.
 | **1** | [What this bulb actually is](#1-what-this-bulb-actually-is) | Confirmed hardware; genuine Sengled, not Tuya |
 | **2** | [Why the vendor app doesn't work](#2-why-the-vendor-app-doesnt-work) | Context — not your fault |
 | **3** | [**Path 1 — solderless local control**](#path-1--solderless-local-control) | Try first. ✅ ESP8266 models · ❌ stalls on W12-N15 |
-| — | [⚠️ **Open issue: provisioning stalls on W12-N15**](#-open-issue-provisioning-does-not-complete-on-w12-n15) | The unresolved blocker, in full |
+| — | [⚠️ **Open issue: joins WiFi, never gets an IP**](#-open-issue-the-bulb-joins-wifi-but-never-gets-an-ip) | The DHCP blocker, precisely located |
 | **4** | [What you get in Home Assistant](#4-what-you-get-in-home-assistant) | Feature matrix + honest gaps |
 | **5** | [The local replacement-cloud add-on](#5-the-local-replacement-cloud-add-on) | ✅ Works. Correct architecture for a segmented network. |
 | — | [Path 2 — `ha-sengled-local`](#path-2--local-mqtt-server-emulation) | Third-party alternative |
@@ -230,7 +233,15 @@ WiFi line depended on the cloud, and that's the line this bulb is in.
 **No flashing. No soldering. No teardown. No Sengled account. No app. No MQTT broker.**
 
 Works on *most, if not all* Sengled WiFi bulbs — explicitly **including modules that cannot be
-flashed**, which is why it's the answer for this bulb rather than a consolation prize.
+flashed**.
+
+> ### ⚠️ Status on this bulb: gets most of the way, then fails at DHCP
+> Confirmed working on the ESP8266 models (`W31-N11`, `W31-N15`). On our **W12-N15 / RTL8710BN** the
+> bulb provisions and **associates** successfully, then **never completes DHCP** and reverts to its
+> SoftAP. [Read the open issue →](#-open-issue-the-bulb-joins-wifi-but-never-gets-an-ip)
+>
+> It's still worth trying first — nothing here can damage the bulb, and if your network's DHCP offer
+> suits it you're done in five minutes.
 
 ### What you need
 
@@ -300,7 +311,7 @@ was my inference that a matching model string guaranteed our unit would work. Mo
 reused across hardware revisions, and *ours* is an RTL8710BN. **"Someone reported success on a
 device with the same model string" is weaker evidence than it reads as.**
 
-See [the open issue](#-open-issue-provisioning-does-not-complete-on-w12-n15) for where it actually
+See [the open issue](#-open-issue-the-bulb-joins-wifi-but-never-gets-an-ip) for where it actually
 stops.
 
 ### ⚠️ Avoid the older cloud-proxy integrations
@@ -311,104 +322,161 @@ assume the cloud is unavailable.
 
 ---
 
-## ⚠️ OPEN ISSUE: provisioning does not complete on W12-N15
+## ⚠️ OPEN ISSUE: the bulb joins WiFi but never gets an IP
 
-**This is the current blocker, and it is unresolved.** Documented in detail because the symptom is
-specific enough to be recognisable, and because a guide that hides its failures wastes your evening
-instead of ours.
+**This is the current blocker. It is unresolved, but it is now precisely located.**
 
-### What happens
+Earlier revisions of this document had this wrong twice. The fault is **not** provisioning and
+**not** association — both work. **The bulb fails at DHCP.**
 
-| Step | Result |
+### Where it actually breaks
+
+| Stage | Result |
 |---|---|
-| Factory reset (flick power 5+ times) | ✅ Bulb raises its SoftAP `Sengled_Wi-Fi Bulb_XXXX` |
-| Laptop joins the SoftAP | ✅ Bulb reachable at `192.168.8.1`, UDP 9080 answers |
-| `--setup-wifi` sends credentials | ✅ Bulb **accepts** the `setParamsRequest` |
-| Bulb joins the target network | ❌ **Never happens** |
-| DHCP lease on the target network | ❌ **No lease ever appears** |
-| Bulb state afterwards | ↩️ **Reverts to its own SoftAP** |
+| Factory reset → SoftAP `Sengled_Wi-Fi Bulb_XXXX` | ✅ works |
+| `--setup-wifi` sends credentials | ✅ **genuinely accepted** — the bulb acts on them |
+| **WiFi association to the target SSID** | ✅ **works — WPA2 4-way handshake completes** |
+| DHCP `DISCOVER` → server `OFFER` | ✅ a **valid OFFER** is produced |
+| **Bulb sends DHCP `REQUEST`** | ❌ **never happens** |
+| Bulb obtains an IP | ❌ no lease, ever |
+| Bulb state afterwards | ↩️ reverts to its own SoftAP |
 
-So the credential handoff is accepted and then nothing downstream of it occurs. The bulb behaves as
-though the association attempt failed and it fell back.
+**The break is the `O` → `R` transition of DORA.** The bulb is on the network at layer 2, and then
+its embedded DHCP client goes silent instead of accepting the offer.
 
-> ### Don't be fooled by the wizard's verdict — in either direction
-> `--setup-wifi` polls **its own local** `/status` endpoint to decide success, and refuses to count
-> loopback hits. If you pointed `--http-server-ip` at Home Assistant (as you should — see
-> [§5](#5-the-local-replacement-cloud-add-on)), the bulb's callbacks land *there*, the local
-> `/status` never flips, and **the wizard times out after ~180 s even when pairing worked.**
+> ### Current root cause
+> **The RTL8710BN's embedded DHCP client cannot complete a lease against this network's DHCP
+> offer.** No fix is confirmed. Packet capture and per-MAC minimal-offer testing are in progress.
+
+### 📝 Two of my own hypotheses are now dead
+
+Both were published here as leading explanations. Keeping the record visible, because the pattern is
+instructive:
+
+| Hypothesis | Verdict |
+|---|---|
+| **"SengledTools provisioning is ESP8266-only"** | ❌ **Refuted by reading the code.** `SUPPORTED_TYPECODES` / `COMPATIBLE_IDENTIFY_MARKERS` are referenced once, only to categorise *flashing* support for a later prompt. No model gate before the credential send, no early abort. Provisioning is chip-agnostic. |
+| **"The radio can't associate — PMF / 802.11r / WPA3 / band steering"** | ❌ **Refuted by live logs.** This was my *stated best guess*, and the AP shows a **completed WPA2 4-way handshake.** Association is fine. Every AP-side theory built on it is void. |
+| **RC4 key or message-schema mismatch on W12-N15 firmware** | ❌ **Refuted.** The bulb associates to the *correct SSID*, so it decrypted and acted on the credential payload. |
+
+**The lesson that generalises:** every one of those was a plausible story built on a symptom
+described as *"never joins the network."* That description was too coarse — it silently merged
+association and addressing. Once someone read the AP and DHCP logs instead of the outcome, the
+candidate list collapsed from five to one. **Insist on the layer the failure happens at before
+theorising about causes.**
+
+### What has been ruled out on the DHCP side
+
+- **Option 119 (domain-search) is not the cause.** Removing it did **not** fix the failure. This was
+  the leading theory — option 119 uses compressed domain-name encoding and the offer carried three
+  domains, which is exactly the kind of thing a minimal parser chokes on. It wasn't it.
+- **It is not option bloat or exotic-option parsing.** The bulb still fails against a minimal offer
+  carrying only options **3** (router) and **6** (DNS).
+- **It is not pool exhaustion, bridging, or a slow server.** The server answers in under a second,
+  every time, with a valid address, and the pool has plenty free.
+- **It is not the SSID's security configuration.** Verified across the whole AP fleet:
+  `wpa=2` / `wpa_pairwise=CCMP` / `wpa_key_mgmt=WPA-PSK`, **no `ieee80211w`**, `ieee80211r=0`,
+  no 802.11k/v, 2.4 GHz-only. Nothing for a picky client to trip over.
+
+**The single most telling datum:** on that *same VLAN and same SSID*, a **different-silicon smart
+bulb** and **dozens of ESP-based devices** all get leases without trouble. **The network's DHCP works
+for everything except this firmware.**
+
+The failure loop is tight and repeatable: the bulb sends `DISCOVER`, the server answers `OFFER`, and
+this repeats **10+ times across ~14 seconds** before the firmware gives up at ~16 s and falls back to
+SoftAP. **Never a `REQUEST`. Never an `ACK`.**
+
+### 🔍 What would make a client take an OFFER and never send a REQUEST
+
+These are **hypotheses for the packet capture to settle, not answers.** Listed because the symptom
+is unusually specific and this is a tractable list.
+
+| Candidate | Why it fits |
+|---|---|
+| **Option 54 (Server Identifier) missing from the OFFER** | RFC 2131 **requires** the client to echo option 54 in its `REQUEST`. Without it, a strict client literally cannot build one. This is the single best fit for "offer received, request never sent." |
+| **Option 1 (subnet mask) absent** | Some embedded stacks refuse to proceed without a mask. |
+| **The OFFER never actually reaches the bulb** | A "valid OFFER" seen *at the server* is not proof of receipt *at the client*. Unicast to a not-yet-assigned IP is commonly dropped by bridges and APs with no ARP entry for it. |
+| **BOOTP option overload / oversized OFFER** | Small fixed receive buffers and unimplemented option 52 overload are classic limits of the lwIP-derived stacks used on Realtek Ameba parts. ⚠️ **Weakened** — the bulb also refused a minimal options-3/6 offer. |
+| **`giaddr` set or option 82 present** | Relay-agent artefacts that picky clients reject. |
+| **Two DHCP servers answering** | Racing OFFERs confuse simple state machines. |
+| **`xid` / `chaddr` mismatch** | Client discards anything that doesn't match its transaction. |
+
+> ⚠️ **A caution about the minimal-offer test.** If the "options 3 and 6 only" offer also dropped
+> **option 54**, that test was confounded — the client would fail for RFC reasons regardless of its
+> firmware quality. **Worth confirming option 54 was present** before concluding the client is at
+> fault. Same question for option 1.
 >
-> That means a wizard timeout proves nothing on its own. **Judge by these two things instead:**
-> a DHCP lease appearing for the bulb, and the add-on log showing both endpoints being served. In
-> our case *neither* happened — which is why this is a real failure and not the known false
-> negative.
+> And the highest-value single measurement is **where** you capture: a capture *on the air* (monitor
+> mode on the bulb's channel) versus *at the DHCP server* distinguishes **"the offer was sent"** from
+> **"the offer was received."** Those are very different bugs.
 
-### Hypothesis 1 — SengledTools provisioning is ESP8266-only
+### If you hit this, the cheapest useful test
 
-Plausible on its face: upstream's `sengled/constants.py` declares
+> ### ⛔ Do NOT build a "minimal test SSID"
+> This is the obvious first instinct and it is **a wasted evening**. The association theories are
+> already dead — the handshake completes. And on the network where this was diagnosed, the SSID was
+> *already* exactly the minimal config anyone would build (WPA2-PSK/CCMP, no PMF, no 802.11r/k/v,
+> 2.4 GHz-only, verified across nine APs). Creating a new SSID just reproduces the same
+> configuration under a new name.
+>
+> **Change the DHCP server, not the SSID.**
+
+The useful test **swaps the entire DHCP implementation** rather than tweaking its options:
+
+1. Provision the bulb onto a **phone hotspot** — a completely different DHCP server with a
+   conventional, minimal offer, and a different implementation entirely.
+2. **Gets a lease:** the bulb's client works, and the *shape* of your network's offer is the problem.
+   Bisect option-by-option from there.
+3. **Still no lease:** the RTL8710BN DHCP client is broken more generally, and
+   [Path 4](#path-4--uart-flash-to-open-firmware) is the realistic route.
+
+> ### ⚠️ You cannot work around this with a static IP
+> Natural idea, doesn't apply: **provisioning accepts only an SSID and a PSK.** There is no field for
+> an address, so the bulb *must* complete DHCP — a reservation doesn't let it skip DORA, it only
+> fixes which address the OFFER carries. The one real lever is the **per-MAC shape of the offer**,
+> which is what makes a targeted minimal reservation worth trying.
+
+Either result is worth having. **If you run it, please open an issue** — this repo has one network's
+worth of data.
+
+### ⚠️ Don't trust the wizard's success messages — in either direction
+
+Independent of the DHCP problem, `--setup-wifi`'s output is **not evidence**:
 
 ```python
-SUPPORTED_TYPECODES = {"W31-N11", "W31-N15"}
-COMPATIBLE_IDENTIFY_MARKERS = ("ESP8266",)
+except socket.timeout:
+    pass                  # total silence from the bulb
+success("Wi-Fi credentials accepted by bulb")   # printed anyway
 ```
 
-and our bulb is neither — it's `W12-N15` on a Realtek RTL8710BN.
+**A bulb that silently drops the packet produces the same "success" as one that accepted it.** And
+*"Wi-Fi credentials saved for &lt;MAC&gt;"* refers to **SengledTools' own local state file**, not the
+bulb's flash.
 
-**But reading the code, this does not hold up as an explanation.** Those two constants are
-referenced in exactly one place (`wifi_setup.py:514-519`), where they only sort the bulb into
-`supported` / `untested` / `not_supported` and stash that as `support_info` **for a later flashing
-prompt**. There is:
+Separately, the wizard polls **its own local** `/status` to verify, and refuses to count loopback
+hits — so if you pointed `--http-server-ip` at Home Assistant (as you should), it **times out after
+~180 s even when pairing worked.**
 
-- **no model gate before the credentials are sent** (`setParamsRequest`, `wifi_setup.py:408`), and
-- **no early abort** on `not_supported`.
+> **Judge by the network, never by the wizard:** a DHCP lease appearing, and the add-on log showing
+> both endpoints served. In our case the credentials *were* genuinely accepted — but we only know
+> that from the AP's association log, not from the tool.
 
-The classification block also runs *after* MQTT attributes are read — i.e. after the bulb is
-already talking. **So the provisioning path is chip-agnostic as written, and this hypothesis does
-not explain our symptom.** It would explain a *refusal*; we get an acceptance followed by silence.
-
-*This narrowing came from reading upstream source, not from testing — if you have a W31 bulb and a
-W12 bulb side by side, that comparison would settle it properly.*
-
-### Hypothesis 2 — the radio can't associate with the target SSID *(current best guess)*
-
-This fits the symptom shape much better: credentials accepted, association fails, fall back to
-SoftAP. Candidate causes, all things a modern AP does by default and a 2020-era Realtek part may
-not tolerate:
-
-| Suspect | Why it's plausible |
-|---|---|
-| **PMF (802.11w) required** | A client that can't do management-frame protection is refused outright at association. Very common default on WPA2/WPA3-transition SSIDs. |
-| **Fast roaming (802.11r / 802.11k/v)** | Older clients sometimes fail association on FT-enabled SSIDs rather than falling back gracefully. |
-| **WPA3 / mixed-mode SAE** | A WPA2-only client may fail on a transition-mode SSID. |
-| **Band steering / a shared 2.4+5 GHz SSID** | The bulb is 2.4 GHz-only and may be steered at a band it cannot see. |
-| **Hidden SSID or exotic characters in the PSK** | Classic provisioning-path breakage. |
-
-### If you hit this, try this
-
-The cheapest decisive test is to **remove the network from the equation entirely**:
-
-1. Stand up a **throwaway 2.4 GHz-only SSID**: WPA2-PSK, **PMF disabled**, **no 802.11r/k/v**, not
-   hidden, plain-ASCII password, no band steering. A phone hotspot works.
-2. Provision the bulb onto *that*.
-3. **If it joins:** the bulb and the tool are fine, and your production SSID's security features are
-   the cause. Narrow down by re-enabling one at a time.
-4. **If it still doesn't join:** the problem is the bulb/tool combination on RTL8710BN hardware, and
-   Hypothesis 1 deserves another look despite the code reading above.
-
-Either outcome is genuinely useful — it splits the two hypotheses cleanly. **If you run this test,
-on either result, please open an issue.** Right now this repo has one data point.
+**Also: run it interactively.** Omitting `--ssid`/`--password` triggers the bulb's own AP scan, which
+proves the bulb can see your SSID and captures the BSSID. Non-interactive mode blind-pushes the SSID
+and suppresses the diagnostic output — the debug prints are gated on `interactive`, **not** on
+verbosity, so `-v` alone will not reveal them.
 
 ### What this means for your options
 
-- **The bulb is not bricked and nothing is lost.** It still raises its SoftAP, still answers UDP
-  9080, and [`tools/probe_bulb.py`](tools/probe_bulb.py) still talks to it. You can retry
-  indefinitely.
-- **[Path 2](#path-2--local-mqtt-server-emulation)** (`ha-sengled-local`) is worth trying — it's an
-  independent implementation of the same idea, so it may not share whatever this bug is.
-- **[Path 4](#path-4--uart-flash-to-open-firmware)** (wired UART) becomes relatively more
-  attractive than it looked when Path 1 seemed certain. It bypasses Sengled's provisioning entirely
-  — with ESPHome on the bulb, you configure WiFi yourself and none of this applies. It's still a
-  mains-voltage teardown with no prior art on this module, so it isn't a casual next step, but it is
-  no longer clearly the worse trade.
+- **Nothing is damaged and nothing is lost.** The bulb still raises its SoftAP, still answers UDP
+  9080, and [`tools/probe_bulb.py`](tools/probe_bulb.py) still talks to it. Retry freely.
+- **[Path 2](#path-2--local-mqtt-server-emulation)** is an independent implementation and may
+  differ — but note it depends on the bulb reaching the network too, so a DHCP fault will block it
+  identically.
+- **[Path 4](#path-4--uart-flash-to-open-firmware) is now the most likely real answer.** ESPHome
+  brings its own network stack: you configure WiFi in the YAML, and **the RTL8710BN's DHCP client is
+  no longer in the picture at all.** That is a direct fix for this exact failure rather than a
+  workaround.
 
 ---
 
@@ -782,16 +850,19 @@ contribution available here.
 
 > **⚠️ Advanced. Unexplored on this specific module. Requires mains-voltage teardown.**
 
-> ### 📈 This path's standing improved
+> ### 📈 This is now the most likely real answer
 > An earlier revision said *"you do not need this — Path 1 already gets the bulb into Home
-> Assistant."* That is no longer something I can assert: on this hardware
-> [Path 1 stalls at provisioning](#-open-issue-provisioning-does-not-complete-on-w12-n15).
+> Assistant."* That has not survived contact with the hardware.
 >
-> Path 4 **bypasses Sengled's provisioning entirely** — with ESPHome on the bulb you configure WiFi
-> yourself, and none of the association/PMF questions apply. It is still a mains-voltage teardown
-> with zero prior art on this module, so it is not a casual next step. But it is **no longer clearly
-> the worse trade**, and if the open issue turns out to be chip-related rather than network-related,
-> it may become the only route.
+> The blocker is the **RTL8710BN's own DHCP client**
+> ([open issue](#-open-issue-the-bulb-joins-wifi-but-never-gets-an-ip)). Flashing ESPHome replaces
+> the entire network stack: you configure WiFi in the YAML and **the stock DHCP client is no longer
+> in the picture at all.** That makes Path 4 a *direct fix for the actual fault* rather than a
+> workaround for it.
+>
+> It is still a mains-voltage teardown with no published prior art on this module, so it is not a
+> casual next step — but it is no longer the fallback. **A turnkey multi-bulb runbook is being
+> written; this section will be replaced by it.**
 
 **This path is more viable than "MXCHIP" makes it sound.** MX1290 is a **Realtek RTL8710BN
 rebadge**, which puts it inside mature, well-trodden tooling:
@@ -1005,9 +1076,10 @@ Raw working notes with sourcing and confidence levels are in [`research/`](resea
 |---|---|
 | [`01-chip-id.md`](research/01-chip-id.md) | Module ID, FCC exhibits, the RTL8710BN discovery, verified UART procedure |
 | [`02-ota-path.md`](research/02-ota-path.md) | The no-solder verdict, SengledTools capability matrix, `--force-flash` hazard |
-| [`03-uart-flash.md`](research/03-uart-flash.md) | Serial flashing procedures + full mains-safety treatment |
+| [`03-uart-flash.md`](research/03-uart-flash.md) | **RTL8710BN UART procedure** — download-mode entry, `ltchiptool`, building ESPHome for `rtl87xx`, mains safety |
 | [`05-ha-features.md`](research/05-ha-features.md) | Full feature → HA entity matrix, protocol caveats, smoke-test plan |
 | [`06-our-ha-app.md`](research/06-our-ha-app.md) | The replacement-cloud add-on: architecture, protocol details, bridge loop prevention, what's unverified |
+| [`07-w12n15-join-debug.md`](research/07-w12n15-join-debug.md) | The join-failure investigation: why the wizard's success messages are false positives, and the DHCP trail |
 
 ### Tools
 
