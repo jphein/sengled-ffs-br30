@@ -1208,4 +1208,4 @@ exposure. For almost everyone it is also simply the better answer.
 
 ## License
 
-[MIT](LICENSE) © JP ([@jphein](https://github.com/jphein))
+AGPL-3.0-or-later © 2026 Jeffrey Pine Hein. See [LICENSE](LICENSE).
